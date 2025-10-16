@@ -19,6 +19,31 @@ import {
 } from "@/components/ui/Card";
 import { ROUTES } from "@/constants/routes";
 
+/**
+ * Validate redirect URL to prevent open redirect vulnerabilities
+ * Same validation as middleware to ensure consistency
+ */
+function validateRedirectUrl(url: string): string {
+  if (!url || !url.startsWith("/")) {
+    return ROUTES.DASHBOARD;
+  }
+
+  if (url.startsWith("/auth")) {
+    return ROUTES.DASHBOARD;
+  }
+
+  const internalPathRegex = /^\/[a-zA-Z0-9\/_-]*$/;
+  if (!internalPathRegex.test(url)) {
+    return ROUTES.DASHBOARD;
+  }
+
+  if (url.length > 2000) {
+    return ROUTES.DASHBOARD;
+  }
+
+  return url;
+}
+
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
@@ -46,8 +71,9 @@ export default function LoginPage() {
     setIsLoading(false);
 
     if (result.success) {
-      const redirect = searchParams.get("redirect") || ROUTES.DASHBOARD;
-      router.push(redirect);
+      const redirectParam = searchParams.get("redirect") || ROUTES.DASHBOARD;
+      const validatedRedirect = validateRedirectUrl(redirectParam);
+      router.push(validatedRedirect);
     }
   };
 
@@ -60,7 +86,11 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-4"
+          data-testid="login-form"
+        >
           <Input
             label="Email"
             type="email"
