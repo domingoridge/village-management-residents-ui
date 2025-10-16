@@ -1,0 +1,480 @@
+openapi: 3.1.0
+info:
+  title: Guest Pre-Authorization API
+  description: Guest management and pre-authorization endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines the 'guest' table which DOES NOT exist in the current schema.
+    The table must be created before implementing these endpoints.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /guest:
+    get:
+      summary: List household guests
+      description: Returns all guests for authenticated user's household (30-day window)
+      operationId: listGuests
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, checked_in, checked_out, cancelled, expired]
+        - name: visit_date
+          in: query
+          schema:
+            type: string
+            description: Filter by date (gte.2025-01-16)
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: visit_date.desc,created_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Guests retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guest'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Pre-authorize guest
+      description: Creates new guest pre-authorization
+      operationId: createGuest
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - guest_name
+                - visit_date
+                - purpose
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                guest_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  example: "Pedro Santos"
+                contact_number:
+                  type: string
+                  nullable: true
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                  example: "+639171234567"
+                vehicle_plate:
+                  type: string
+                  nullable: true
+                  pattern: '^[A-Z0-9]{6,7}$'
+                  example: "XYZ5678"
+                visit_date:
+                  type: string
+                  format: date
+                  example: "2025-01-20"
+                expected_time:
+                  type: string
+                  format: time
+                  nullable: true
+                  example: "14:00:00"
+                purpose:
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+                  example: "Birthday celebration"
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                  description: Additional notes for security
+      responses:
+        '201':
+          description: Guest pre-authorized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /guest?id=eq.{guestId}:
+    get:
+      summary: Get guest details
+      description: Returns single guest pre-authorization
+      operationId: getGuest
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Guest retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guest'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update guest pre-authorization
+      description: Updates guest details (only if status is pending or approved)
+      operationId: updateGuest
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                guest_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                contact_number:
+                  type: string
+                  nullable: true
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                vehicle_plate:
+                  type: string
+                  nullable: true
+                  pattern: '^[A-Z0-9]{6,7}$'
+                visit_date:
+                  type: string
+                  format: date
+                expected_time:
+                  type: string
+                  format: time
+                  nullable: true
+                purpose:
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Guest updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Cancel guest pre-authorization
+      description: Cancels guest (only if status is pending or approved)
+      operationId: cancelGuest
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Guest cancelled successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/bulk_create_guests:
+    post:
+      summary: Bulk pre-authorize guests
+      description: Creates multiple guest pre-authorizations (e.g., for events)
+      operationId: bulkCreateGuests
+      tags:
+        - Guests
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - guests
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                guests:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required:
+                      - guest_name
+                      - visit_date
+                      - purpose
+                    properties:
+                      guest_name:
+                        type: string
+                      contact_number:
+                        type: string
+                        nullable: true
+                      vehicle_plate:
+                        type: string
+                        nullable: true
+                      visit_date:
+                        type: string
+                        format: date
+                      expected_time:
+                        type: string
+                        format: time
+                        nullable: true
+                      purpose:
+                        type: string
+      responses:
+        '200':
+          description: Guests created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  created_count:
+                    type: integer
+                  guests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Guest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Guest:
+      type: object
+      description: Guest pre-authorization entity (TO BE CREATED)
+      required:
+        - id
+        - tenant_id
+        - household_id
+        - guest_name
+        - visit_date
+        - purpose
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        authorized_by:
+          type: string
+          format: uuid
+          description: user_profile.id of resident who authorized
+        guest_name:
+          type: string
+          maxLength: 200
+          example: "Pedro Santos"
+        contact_number:
+          type: string
+          nullable: true
+          example: "+639171234567"
+        vehicle_plate:
+          type: string
+          nullable: true
+          example: "XYZ5678"
+        visit_date:
+          type: string
+          format: date
+          example: "2025-01-20"
+        expected_time:
+          type: string
+          format: time
+          nullable: true
+          example: "14:00:00"
+        actual_arrival:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set by security on check-in
+        actual_departure:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set by security on check-out
+        purpose:
+          type: string
+          maxLength: 500
+          example: "Birthday celebration"
+        notes:
+          type: string
+          nullable: true
+          maxLength: 1000
+        status:
+          type: string
+          enum: [pending, approved, checked_in, checked_out, cancelled, expired]
+          default: approved
+          description: Auto-approved for residents with visiting rights
+        gate_entry_log_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Links to gate_entry_log on check-in
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: no_visiting_rights
+            message: User does not have visiting rights in this household
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error - business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: past_visit_date
+            message: Visit date cannot be in the past

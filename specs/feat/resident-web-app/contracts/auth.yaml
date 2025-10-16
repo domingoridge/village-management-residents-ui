@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: Authentication API
+  description: Authentication endpoints for Village Management Resident Application
+  version: 1.0.0
+  contact:
+    name: Village Management Team
+
+servers:
+  - url: https://{project-ref}.supabase.co/auth/v1
+    description: Supabase Authentication API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /signup:
+    post:
+      summary: Register new resident account
+      description: Creates a new user account with email/password authentication
+      operationId: signUp
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Resident email address
+                  example: juan.delacruz@email.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: Account password (min 8 characters)
+                  example: SecurePass123!
+                firstName:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: First name
+                  example: Juan
+                lastName:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Last name
+                  example: Dela Cruz
+      responses:
+        '200':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  session:
+                    $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /token:
+    post:
+      summary: Sign in with email and password
+      description: Authenticates user and returns access/refresh tokens
+      operationId: signIn
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: juan.delacruz@email.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token (1 hour expiry)
+                  refresh_token:
+                    type: string
+                    description: Refresh token for obtaining new access tokens
+                  expires_in:
+                    type: integer
+                    description: Access token expiry in seconds
+                    example: 3600
+                  token_type:
+                    type: string
+                    example: bearer
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /token?grant_type=refresh_token:
+    post:
+      summary: Refresh access token
+      description: Obtains new access token using refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Valid refresh token
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  expires_in:
+                    type: integer
+                  token_type:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout:
+    post:
+      summary: Sign out current user
+      description: Invalidates the current session and refresh token
+      operationId: signOut
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Successfully signed out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /recover:
+    post:
+      summary: Request password reset
+      description: Sends password reset email to user
+      operationId: requestPasswordReset
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: juan.delacruz@email.com
+      responses:
+        '200':
+          description: Password reset email sent (always returns 200 for security)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset email sent if account exists
+
+  /user:
+    get:
+      summary: Get current user profile
+      description: Returns authenticated user's profile information
+      operationId: getCurrentUser
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update user profile
+      description: Updates authenticated user's profile information
+      operationId: updateUserProfile
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: New email address (triggers verification)
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: New password
+                data:
+                  type: object
+                  description: Custom user metadata
+                  properties:
+                    firstName:
+                      type: string
+                    lastName:
+                      type: string
+                    avatarUrl:
+                      type: string
+                      format: uri
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token from sign in or refresh token endpoint
+
+  schemas:
+    User:
+      type: object
+      description: Authenticated user object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID (auth.users.id)
+        email:
+          type: string
+          format: email
+        emailConfirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          example: authenticated
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        userMetadata:
+          type: object
+          description: Custom user metadata
+          properties:
+            firstName:
+              type: string
+            lastName:
+              type: string
+            avatarUrl:
+              type: string
+
+    Session:
+      type: object
+      description: User session object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens
+        expiresIn:
+          type: integer
+          description: Access token expiry in seconds
+        tokenType:
+          type: string
+          example: bearer
+        user:
+          $ref: '#/components/schemas/User'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        errorDescription:
+          type: string
+          description: Human-readable error message
+        message:
+          type: string
+          description: Detailed error message
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: invalid_request
+            errorDescription: Invalid email format
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: invalid_grant
+            errorDescription: Invalid login credentials
+
+    ValidationError:
+      description: Validation error - data does not meet requirements
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: validation_failed
+            errorDescription: Password must be at least 8 characters

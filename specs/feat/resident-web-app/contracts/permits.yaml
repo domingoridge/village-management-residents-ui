@@ -1,0 +1,583 @@
+openapi: 3.1.0
+info:
+  title: Construction Permits API
+  description: Construction and renovation permit management endpoints
+  version: 1.0.0
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /permit:
+    get:
+      summary: List household permits
+      description: Returns all permits for authenticated user's household
+      operationId: listPermits
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,permit_payment(*)"
+        - name: permit_type
+          in: query
+          schema:
+            type: string
+            enum: [construction, renovation, maintenance, miscellaneous]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted, pending_payment, approved, rejected, in_progress, completed, cancelled]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Permits retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermitWithPayment'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create permit application
+      description: Creates new construction/renovation permit application
+      operationId: createPermit
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - permit_type
+                - project_description
+                - contractor_name
+                - contractor_contact
+                - estimated_start_date
+                - estimated_end_date
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                permit_type:
+                  type: string
+                  enum: [construction, renovation, maintenance, miscellaneous]
+                project_description:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+                  description: Detailed project description
+                  example: "Kitchen renovation including cabinet replacement and tile work"
+                contractor_name:
+                  type: string
+                  maxLength: 200
+                  example: "ABC Construction Inc."
+                contractor_contact:
+                  type: string
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                  example: "+639171234567"
+                estimated_start_date:
+                  type: string
+                  format: date
+                  example: "2025-02-01"
+                estimated_end_date:
+                  type: string
+                  format: date
+                  example: "2025-02-28"
+                project_scope:
+                  type: object
+                  nullable: true
+                  description: Additional project details (JSONB)
+                  properties:
+                    affectedAreas:
+                      type: array
+                      items:
+                        type: string
+                    materials:
+                      type: array
+                      items:
+                        type: string
+                    workingHours:
+                      type: string
+      responses:
+        '201':
+          description: Permit application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /permit?id=eq.{permitId}:
+    get:
+      summary: Get permit details
+      description: Returns single permit with payment information
+      operationId: getPermit
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: permitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,permit_payment(*)"
+      responses:
+        '200':
+          description: Permit retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermitWithPayment'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update permit application
+      description: Updates permit details (only if status is draft)
+      operationId: updatePermit
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: permitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permit_type:
+                  type: string
+                  enum: [construction, renovation, maintenance, miscellaneous]
+                project_description:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+                contractor_name:
+                  type: string
+                  maxLength: 200
+                contractor_contact:
+                  type: string
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                estimated_start_date:
+                  type: string
+                  format: date
+                estimated_end_date:
+                  type: string
+                  format: date
+                project_scope:
+                  type: object
+                  nullable: true
+      responses:
+        '200':
+          description: Permit updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Cancel permit application
+      description: Cancels permit (only if status is draft or submitted)
+      operationId: cancelPermit
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: permitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Permit cancelled successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/submit_permit:
+    post:
+      summary: Submit permit for review
+      description: Changes permit status from draft to submitted
+      operationId: submitPermit
+      tags:
+        - Permits
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permit_id
+              properties:
+                permit_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Permit submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  permit:
+                    $ref: '#/components/schemas/Permit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /permit_payment:
+    get:
+      summary: Get permit payment details
+      description: Returns payment information for a permit
+      operationId: getPermitPayment
+      tags:
+        - Permit Payments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: permit_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PermitPayment'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Record permit payment
+      description: Records payment for approved permit fee
+      operationId: createPermitPayment
+      tags:
+        - Permit Payments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permit_id
+                - payment_method
+                - amount_paid
+              properties:
+                permit_id:
+                  type: string
+                  format: uuid
+                payment_method:
+                  type: string
+                  enum: [cash, bank_transfer, gcash, paymaya, card]
+                amount_paid:
+                  type: number
+                  format: decimal
+                  minimum: 0
+                  example: 5000.00
+                reference_number:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                  description: Transaction/receipt number
+                  example: "GC-20250116-ABC123"
+                payment_proof_url:
+                  type: string
+                  format: uri
+                  nullable: true
+                  description: Supabase Storage URL for receipt/proof
+      responses:
+        '201':
+          description: Payment recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermitPayment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Permit:
+      type: object
+      description: Construction/renovation permit entity
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        permit_type:
+          type: string
+          enum: [construction, renovation, maintenance, miscellaneous]
+        project_description:
+          type: string
+        contractor_name:
+          type: string
+        contractor_contact:
+          type: string
+        estimated_start_date:
+          type: string
+          format: date
+        estimated_end_date:
+          type: string
+          format: date
+        actual_start_date:
+          type: string
+          format: date
+          nullable: true
+        actual_end_date:
+          type: string
+          format: date
+          nullable: true
+        fee_amount:
+          type: number
+          format: decimal
+          nullable: true
+          description: Set by admin on approval
+        status:
+          type: string
+          enum: [draft, submitted, pending_payment, approved, rejected, in_progress, completed, cancelled]
+          default: draft
+        admin_notes:
+          type: string
+          nullable: true
+          description: Admin comments/feedback
+        project_scope:
+          type: object
+          nullable: true
+          description: Additional project details (JSONB)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PermitPayment:
+      type: object
+      description: Permit fee payment record
+      properties:
+        id:
+          type: string
+          format: uuid
+        permit_id:
+          type: string
+          format: uuid
+        payment_method:
+          type: string
+          enum: [cash, bank_transfer, gcash, paymaya, card]
+        amount_paid:
+          type: number
+          format: decimal
+        payment_date:
+          type: string
+          format: date-time
+        reference_number:
+          type: string
+          nullable: true
+        payment_proof_url:
+          type: string
+          format: uri
+          nullable: true
+        verified_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin user who verified payment
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    PermitWithPayment:
+      allOf:
+        - $ref: '#/components/schemas/Permit'
+        - type: object
+          properties:
+            permit_payment:
+              type: array
+              items:
+                $ref: '#/components/schemas/PermitPayment'
+              maxItems: 1
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: permit_not_editable
+            message: Cannot modify permit after submission
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error - business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: invalid_date_range
+            message: End date must be after start date
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: payment_already_recorded
+            message: Payment already exists for this permit

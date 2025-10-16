@@ -1,0 +1,342 @@
+openapi: 3.1.0
+info:
+  title: Village Rules API
+  description: Village rules and regulations access endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract uses the existing 'residential_community_config' table.
+    Village rules are stored in the config_value JSONB field with config_key = 'village_rules'.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /residential_community_config:
+    get:
+      summary: Get village rules and policies
+      description: Returns village rules configuration for authenticated user's village
+      operationId: getVillageRules
+      tags:
+        - Village Rules
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: config_key
+          in: query
+          schema:
+            type: string
+            enum: [village_rules, curfew_policy, parking_policy, construction_policy, guest_policy]
+      responses:
+        '200':
+          description: Rules retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommunityConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/get_all_rules:
+    post:
+      summary: Get all village rules
+      description: Returns consolidated village rules and policies
+      operationId: getAllRules
+      tags:
+        - Village Rules
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenant_id
+              properties:
+                tenant_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: All rules retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  village_rules:
+                    $ref: '#/components/schemas/VillageRules'
+                  curfew_policy:
+                    $ref: '#/components/schemas/CurfewPolicy'
+                  parking_policy:
+                    $ref: '#/components/schemas/ParkingPolicy'
+                  construction_policy:
+                    $ref: '#/components/schemas/ConstructionPolicy'
+                  guest_policy:
+                    $ref: '#/components/schemas/GuestPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/search_rules:
+    post:
+      summary: Search village rules
+      description: Full-text search across all village rules and policies
+      operationId: searchRules
+      tags:
+        - Village Rules
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenant_id
+                - query
+              properties:
+                tenant_id:
+                  type: string
+                  format: uuid
+                query:
+                  type: string
+                  minLength: 3
+                  description: Search term
+                  example: "parking"
+      responses:
+        '200':
+          description: Search results returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    category:
+                      type: string
+                      example: "parking_policy"
+                    section:
+                      type: string
+                      example: "Guest Parking"
+                    content:
+                      type: string
+                    relevance_score:
+                      type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CommunityConfig:
+      type: object
+      description: Residential community configuration entity (EXISTING)
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        config_key:
+          type: string
+          example: "village_rules"
+        config_value:
+          type: object
+          description: JSONB configuration data
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VillageRules:
+      type: object
+      description: General village rules structure (stored in config_value)
+      properties:
+        general_conduct:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: string
+              penalty:
+                type: string
+                nullable: true
+        noise_regulations:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: string
+              allowed_hours:
+                type: string
+                nullable: true
+        pet_policy:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: string
+        waste_management:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: string
+              collection_schedule:
+                type: string
+                nullable: true
+        security_protocols:
+          type: array
+          items:
+            type: object
+            properties:
+              rule:
+                type: string
+
+    CurfewPolicy:
+      type: object
+      description: Curfew policy structure
+      properties:
+        minors_curfew:
+          type: object
+          properties:
+            start_time:
+              type: string
+              example: "22:00"
+            end_time:
+              type: string
+              example: "05:00"
+            age_limit:
+              type: integer
+              example: 18
+        construction_hours:
+          type: object
+          properties:
+            weekday_start:
+              type: string
+              example: "08:00"
+            weekday_end:
+              type: string
+              example: "17:00"
+            weekend_allowed:
+              type: boolean
+
+    ParkingPolicy:
+      type: object
+      description: Parking policy structure
+      properties:
+        resident_parking:
+          type: array
+          items:
+            type: string
+        guest_parking:
+          type: array
+          items:
+            type: string
+        prohibited_areas:
+          type: array
+          items:
+            type: string
+        overnight_guest_parking:
+          type: object
+          properties:
+            allowed:
+              type: boolean
+            max_duration_hours:
+              type: integer
+
+    ConstructionPolicy:
+      type: object
+      description: Construction policy structure
+      properties:
+        permit_required_for:
+          type: array
+          items:
+            type: string
+        allowed_hours:
+          type: object
+          properties:
+            weekday_start:
+              type: string
+            weekday_end:
+              type: string
+            weekend_allowed:
+              type: boolean
+        material_delivery:
+          type: array
+          items:
+            type: string
+
+    GuestPolicy:
+      type: object
+      description: Guest policy structure
+      properties:
+        pre_authorization:
+          type: object
+          properties:
+            required:
+              type: boolean
+            advance_notice_hours:
+              type: integer
+        overnight_guests:
+          type: object
+          properties:
+            allowed:
+              type: boolean
+            max_consecutive_nights:
+              type: integer
+            notification_required:
+              type: boolean
+        visitor_id_requirements:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

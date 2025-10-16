@@ -1,0 +1,434 @@
+openapi: 3.1.0
+info:
+  title: Notifications API
+  description: System notification management endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines the 'notification' table which DOES NOT exist in the current schema.
+    The table must be created before implementing these endpoints.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /notification:
+    get:
+      summary: List user notifications
+      description: Returns notifications for authenticated user (30-day window)
+      operationId: listNotifications
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_profile_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: notification_type
+          in: query
+          schema:
+            type: string
+            enum: [guest_approval, sticker_update, payment_due, permit_update, incident_update, announcement, message_received, system]
+        - name: is_read
+          in: query
+          schema:
+            type: boolean
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, normal, high, urgent]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notification?id=eq.{notificationId}:
+    get:
+      summary: Get notification details
+      description: Returns single notification
+      operationId: getNotification
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Mark notification as read
+      description: Updates notification read status
+      operationId: markNotificationRead
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_read:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Notification updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Dismiss notification
+      description: Removes notification from user's list
+      operationId: dismissNotification
+      tags:
+        - Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notification dismissed successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/mark_all_notifications_read:
+    post:
+      summary: Mark all notifications as read
+      description: Bulk updates all unread notifications for user
+      operationId: markAllNotificationsRead
+      tags:
+        - Notification Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_profile_id
+              properties:
+                user_profile_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updated_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/get_notification_counts:
+    post:
+      summary: Get notification counts
+      description: Returns unread notification counts by type
+      operationId: getNotificationCounts
+      tags:
+        - Notification Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_profile_id
+              properties:
+                user_profile_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Notification counts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_unread:
+                    type: integer
+                  by_type:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  by_priority:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  urgent_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/create_notification:
+    post:
+      summary: Create system notification
+      description: Creates new notification (typically called by server-side triggers)
+      operationId: createNotification
+      tags:
+        - Notification Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_profile_id
+                - notification_type
+                - title
+                - message
+              properties:
+                tenant_id:
+                  type: string
+                  format: uuid
+                user_profile_id:
+                  type: string
+                  format: uuid
+                notification_type:
+                  type: string
+                  enum: [guest_approval, sticker_update, payment_due, permit_update, incident_update, announcement, message_received, system]
+                title:
+                  type: string
+                  maxLength: 200
+                  example: "Payment Due Reminder"
+                message:
+                  type: string
+                  maxLength: 500
+                  example: "Your monthly dues of PHP 2,500 are due on January 31, 2025"
+                priority:
+                  type: string
+                  enum: [low, normal, high, urgent]
+                  default: normal
+                action_url:
+                  type: string
+                  nullable: true
+                  description: Deep link to related resource
+                  example: "/payments/abc-123-def"
+                metadata:
+                  type: object
+                  nullable: true
+                  description: Additional notification data (JSONB)
+      responses:
+        '201':
+          description: Notification created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Notification:
+      type: object
+      description: System notification entity (TO BE CREATED)
+      required:
+        - id
+        - user_profile_id
+        - notification_type
+        - title
+        - message
+        - priority
+        - is_read
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        user_profile_id:
+          type: string
+          format: uuid
+          description: Recipient user
+        notification_type:
+          type: string
+          enum: [guest_approval, sticker_update, payment_due, permit_update, incident_update, announcement, message_received, system]
+          description: Notification category
+        title:
+          type: string
+          maxLength: 200
+          example: "Payment Due Reminder"
+        message:
+          type: string
+          maxLength: 500
+          example: "Your monthly dues are due on January 31"
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+        action_url:
+          type: string
+          nullable: true
+          description: Deep link to related resource
+          example: "/payments/abc-123-def"
+        action_label:
+          type: string
+          nullable: true
+          maxLength: 50
+          description: Button text for action
+          example: "View Payment"
+        is_read:
+          type: boolean
+          default: false
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        related_entity_type:
+          type: string
+          nullable: true
+          enum: [guest, sticker, payment, permit, incident, announcement, message]
+          description: For linking to source entity
+        related_entity_id:
+          type: string
+          format: uuid
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          description: Additional notification data (JSONB)
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Auto-dismiss after this time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

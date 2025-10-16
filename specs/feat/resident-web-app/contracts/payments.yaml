@@ -1,0 +1,460 @@
+openapi: 3.1.0
+info:
+  title: Payments API
+  description: Household billing and payment processing endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines the 'payment' table which DOES NOT exist in the current schema.
+    The table must be created before implementing these endpoints.
+    Note: permit_payment table already exists for construction permit fees.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /payment:
+    get:
+      summary: List household payments
+      description: Returns payment history for authenticated user's household
+      operationId: listPayments
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: payment_type
+          in: query
+          schema:
+            type: string
+            enum: [monthly_due, association_fee, utilities, special_assessment, penalty, other]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed, refunded]
+        - name: due_date
+          in: query
+          schema:
+            type: string
+            description: Filter by due date (gte.2025-01-01)
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: due_date.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /payment?id=eq.{paymentId}:
+    get:
+      summary: Get payment details
+      description: Returns single payment with transaction details
+      operationId: getPayment
+      tags:
+        - Payments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/initiate_payment:
+    post:
+      summary: Initiate payment transaction
+      description: Initiates payment via PayMongo/GCash/PayMaya gateway
+      operationId: initiatePayment
+      tags:
+        - Payment Processing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_id
+                - payment_method
+              properties:
+                payment_id:
+                  type: string
+                  format: uuid
+                  description: Payment record to process
+                payment_method:
+                  type: string
+                  enum: [gcash, paymaya, credit_card, bank_transfer, cash]
+                  description: Selected payment method
+                return_url:
+                  type: string
+                  format: uri
+                  description: URL to redirect after payment (for online methods)
+      responses:
+        '200':
+          description: Payment initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  checkout_url:
+                    type: string
+                    format: uri
+                    nullable: true
+                    description: Redirect URL for online payment (GCash/PayMaya/Card)
+                  reference_number:
+                    type: string
+                    description: Transaction reference
+                  payment:
+                    $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/record_manual_payment:
+    post:
+      summary: Record manual payment
+      description: Records cash or bank transfer payment (requires admin verification)
+      operationId: recordManualPayment
+      tags:
+        - Payment Processing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_id
+                - payment_method
+                - amount_paid
+              properties:
+                payment_id:
+                  type: string
+                  format: uuid
+                payment_method:
+                  type: string
+                  enum: [cash, bank_transfer]
+                amount_paid:
+                  type: number
+                  format: decimal
+                  minimum: 0
+                  example: 2500.00
+                reference_number:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                  description: Bank transaction reference
+                  example: "BT-20250116-001"
+                payment_proof_url:
+                  type: string
+                  format: uri
+                  nullable: true
+                  description: Supabase Storage URL for receipt/deposit slip
+                notes:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+      responses:
+        '200':
+          description: Payment recorded successfully (pending verification)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                    example: "Payment recorded and pending admin verification"
+                  payment:
+                    $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/get_payment_summary:
+    post:
+      summary: Get household payment summary
+      description: Returns outstanding balance and payment history summary
+      operationId: getPaymentSummary
+      tags:
+        - Payment Analytics
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Payment summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_outstanding:
+                    type: number
+                    format: decimal
+                    description: Total pending payments
+                  overdue_amount:
+                    type: number
+                    format: decimal
+                    description: Amount past due date
+                  pending_count:
+                    type: integer
+                  completed_this_year:
+                    type: integer
+                  total_paid_this_year:
+                    type: number
+                    format: decimal
+                  next_due_date:
+                    type: string
+                    format: date
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/download_receipt:
+    post:
+      summary: Download payment receipt
+      description: Generates PDF receipt for completed payment
+      operationId: downloadReceipt
+      tags:
+        - Payment Processing
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_id
+              properties:
+                payment_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Receipt URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  receipt_url:
+                    type: string
+                    format: uri
+                    description: Temporary download URL
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Payment:
+      type: object
+      description: Household payment entity (TO BE CREATED)
+      required:
+        - id
+        - tenant_id
+        - household_id
+        - payment_type
+        - amount_due
+        - due_date
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        payment_type:
+          type: string
+          enum: [monthly_due, association_fee, utilities, special_assessment, penalty, other]
+          example: monthly_due
+        description:
+          type: string
+          maxLength: 500
+          example: "Monthly association dues - January 2025"
+        amount_due:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 2500.00
+        amount_paid:
+          type: number
+          format: decimal
+          nullable: true
+          minimum: 0
+          description: Actual amount paid
+        due_date:
+          type: string
+          format: date
+          example: "2025-01-31"
+        payment_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When payment was completed
+        payment_method:
+          type: string
+          nullable: true
+          enum: [cash, bank_transfer, gcash, paymaya, credit_card]
+        reference_number:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: Transaction/receipt reference
+        payment_proof_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Supabase Storage URL for receipt
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, refunded]
+          default: pending
+        gateway_transaction_id:
+          type: string
+          nullable: true
+          maxLength: 255
+          description: PayMongo/GCash/PayMaya transaction ID
+        verified_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin user who verified manual payment
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          maxLength: 1000
+        metadata:
+          type: object
+          nullable: true
+          description: Additional payment details (JSONB)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

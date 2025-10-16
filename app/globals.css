@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+@plugin "daisyui/theme" {
+  name: "villagetheme";
+  default: true;
+  --color-primary: #166088;
+  --color-secondary: #fefefe;
+  --color-accent: #e2725b;
+  --color-neutral: #333333;
+  --color-base-100: #fefefe;
+  --color-success: #77dd77;
+  --color-error: #d32f2f;
+  --color-info: #aec6cf;
+}
+
+@theme {
+  /* Base Colors */
+  --color-white: #ffffff;
+  --color-secondary: #fefefe;
+  --color-neutral: #333333;
+
+  /* Brand Color Scales */
+  --color-primary-50: #e6f1f7;
+  --color-primary-100: #c2dcea;
+  --color-primary-200: #9ac6dd;
+  --color-primary-300: #72b0d0;
+  --color-primary-400: #4a9ac3;
+  --color-primary-500: #166088;
+  --color-primary-600: #125071;
+  --color-primary-700: #0e4059;
+  --color-primary-800: #0a3041;
+  --color-primary-900: #06202a;
+  --color-primary-950: #031012;
+
+  --color-accent-50: #fef3f0;
+  --color-accent-100: #fce0d8;
+  --color-accent-200: #facdc0;
+  --color-accent-300: #f8baa8;
+  --color-accent-400: #f69690;
+  --color-accent-500: #e2725b;
+  --color-accent-600: #d55b42;
+  --color-accent-700: #b64a35;
+  --color-accent-800: #973929;
+  --color-accent-900: #78281d;
+  --color-accent-950: #3c1410;
+
+  --color-success-50: #f0faf0;
+  --color-success-100: #d4f1d4;
+  --color-success-200: #b8e8b8;
+  --color-success-300: #9cdf9c;
+  --color-success-400: #89e689;
+  --color-success-500: #77dd77;
+  --color-success-600: #5ec75e;
+  --color-success-700: #4ba84b;
+  --color-success-800: #388938;
+  --color-success-900: #256a25;
+  --color-success-950: #123512;
+
+  --color-error-50: #fbe9e9;
+  --color-error-100: #f4c2c2;
+  --color-error-200: #ed9b9b;
+  --color-error-300: #e67474;
+  --color-error-400: #df4d4d;
+  --color-error-500: #d32f2f;
+  --color-error-600: #b82828;
+  --color-error-700: #9d2121;
+  --color-error-800: #821a1a;
+  --color-error-900: #671313;
+  --color-error-950: #340a0a;
+
+  --color-info-50: #f5f9fb;
+  --color-info-100: #e6eff3;
+  --color-info-200: #d7e5eb;
+  --color-info-300: #c8dbe3;
+  --color-info-400: #bbd1db;
+  --color-info-500: #aec6cf;
+  --color-info-600: #8eb3c0;
+  --color-info-700: #6e9aac;
+  --color-info-800: #5a8091;
+  --color-info-900: #466676;
+  --color-info-950: #23333b;
+
+  /* Custom Spacing (Golden ratio-based) */
+  /* --spacing-xs: 0.382rem;
+  --spacing-sm: 0.618rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.618rem;
+  --spacing-xl: 2.618rem;
+  --spacing-xxl: 4.236rem; */
+
+  /* Font families */
+  --font-family-sans: "Inter", system-ui, sans-serif;
+  --font-family-mono: "Fira Code", monospace;
+}
+
+body {
+  background-color: var(--color-secondary);
+  color: var(--color-neutral);
+}

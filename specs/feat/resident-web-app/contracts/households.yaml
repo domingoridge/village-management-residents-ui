@@ -1,0 +1,535 @@
+openapi: 3.1.0
+info:
+  title: Households API
+  description: Household profile and resident management endpoints
+  version: 1.0.0
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /household:
+    get:
+      summary: Get current user's household
+      description: Returns household information for authenticated resident
+      operationId: getCurrentHousehold
+      tags:
+        - Households
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,resident(*,user_profile(*))"
+          description: Fields to select (PostgREST syntax)
+      responses:
+        '200':
+          description: Household retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseholdWithResidents'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      summary: Update household profile
+      description: Updates household information (household-head only)
+      operationId: updateHousehold
+      tags:
+        - Households
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contact_number:
+                  type: string
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                  example: "+639171234567"
+                emergency_contact_name:
+                  type: string
+                  maxLength: 200
+                  example: "Maria Dela Cruz"
+                emergency_contact_number:
+                  type: string
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                  example: "+639171234568"
+                preferences:
+                  type: object
+                  description: Household preferences (JSONB)
+                  properties:
+                    notificationsEnabled:
+                      type: boolean
+                    theme:
+                      type: string
+                      enum: [light, dark, auto]
+      responses:
+        '200':
+          description: Household updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /resident:
+    get:
+      summary: List household residents
+      description: Returns all residents in current user's household
+      operationId: listResidents
+      tags:
+        - Residents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,user_profile(*)"
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Residents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResidentWithProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Add household member
+      description: Adds new resident to household (household-head only)
+      operationId: addResident
+      tags:
+        - Residents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - user_profile_id
+                - has_signatory_rights
+                - has_visiting_rights
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                user_profile_id:
+                  type: string
+                  format: uuid
+                  description: User profile to add as resident
+                has_signatory_rights:
+                  type: boolean
+                  description: Can manage household (household-head or household-member)
+                  example: false
+                has_visiting_rights:
+                  type: boolean
+                  description: Can pre-register guests
+                  example: true
+      responses:
+        '201':
+          description: Resident added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /resident?id=eq.{residentId}:
+    patch:
+      summary: Update resident permissions
+      description: Updates resident's signatory and visiting rights (household-head only)
+      operationId: updateResident
+      tags:
+        - Residents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: residentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                has_signatory_rights:
+                  type: boolean
+                has_visiting_rights:
+                  type: boolean
+      responses:
+        '200':
+          description: Resident updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resident'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove household member
+      description: Removes resident from household (household-head only)
+      operationId: removeResident
+      tags:
+        - Residents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: residentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Resident removed successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /gate_entry_log:
+    get:
+      summary: Get household access history
+      description: Returns entry/exit logs for household (30-day rolling window)
+      operationId: getAccessHistory
+      tags:
+        - Access History
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: entry_time
+          in: query
+          schema:
+            type: string
+            description: Filter by timestamp (gte.2025-01-01T00:00:00Z)
+        - name: entry_type
+          in: query
+          schema:
+            type: string
+            enum: [vehicle_rfid, guest, delivery, permit_holder, visitor]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: entry_time.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Access history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GateEntryLog'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+              description: Pagination info (e.g., "0-49/150")
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Household:
+      type: object
+      description: Household entity from database
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        address_line1:
+          type: string
+          example: "123 Main Street"
+        address_line2:
+          type: string
+          nullable: true
+          example: "Block 5 Lot 10"
+        block:
+          type: string
+          nullable: true
+          example: "5"
+        lot:
+          type: string
+          nullable: true
+          example: "10"
+        sticker_quota:
+          type: integer
+          description: Maximum vehicle stickers allowed
+          example: 4
+        contact_number:
+          type: string
+          nullable: true
+          example: "+639171234567"
+        emergency_contact_name:
+          type: string
+          nullable: true
+          example: "Maria Dela Cruz"
+        emergency_contact_number:
+          type: string
+          nullable: true
+          example: "+639171234568"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          default: active
+        preferences:
+          type: object
+          nullable: true
+          description: Household preferences (JSONB)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Resident:
+      type: object
+      description: Resident entity from database
+      properties:
+        id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        user_profile_id:
+          type: string
+          format: uuid
+        has_signatory_rights:
+          type: boolean
+          description: Household-head or household-member
+        has_visiting_rights:
+          type: boolean
+          description: Can pre-register guests
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserProfile:
+      type: object
+      description: User profile entity
+      properties:
+        id:
+          type: string
+          format: uuid
+        auth_user_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          example: "Juan"
+        last_name:
+          type: string
+          example: "Dela Cruz"
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+        preferences:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ResidentWithProfile:
+      allOf:
+        - $ref: '#/components/schemas/Resident'
+        - type: object
+          properties:
+            user_profile:
+              $ref: '#/components/schemas/UserProfile'
+
+    HouseholdWithResidents:
+      allOf:
+        - $ref: '#/components/schemas/Household'
+        - type: object
+          properties:
+            resident:
+              type: array
+              items:
+                $ref: '#/components/schemas/ResidentWithProfile'
+
+    GateEntryLog:
+      type: object
+      description: Gate entry/exit event log
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+          nullable: true
+        entry_type:
+          type: string
+          enum: [vehicle_rfid, guest, delivery, permit_holder, visitor]
+        entry_time:
+          type: string
+          format: date-time
+        exit_time:
+          type: string
+          format: date-time
+          nullable: true
+        vehicle_plate:
+          type: string
+          nullable: true
+          example: "ABC1234"
+        visitor_name:
+          type: string
+          nullable: true
+        purpose:
+          type: string
+          nullable: true
+        guard_on_duty:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: PGRST301
+            message: Only household-head can perform this action
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "23505"
+            message: User is already a resident of this household

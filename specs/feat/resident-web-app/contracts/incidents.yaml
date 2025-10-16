@@ -1,0 +1,470 @@
+openapi: 3.1.0
+info:
+  title: Incidents API
+  description: Incident reporting and tracking endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines the 'incident' table which DOES NOT exist in the current schema.
+    The table must be created before implementing these endpoints.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /incident:
+    get:
+      summary: List household incidents
+      description: Returns incidents reported by or affecting authenticated user's household
+      operationId: listIncidents
+      tags:
+        - Incidents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: incident_type
+          in: query
+          schema:
+            type: string
+            enum: [security, maintenance, noise, parking, safety, health, other]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, acknowledged, investigating, resolved, closed]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Incidents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Incident'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Report new incident
+      description: Creates new incident report
+      operationId: createIncident
+      tags:
+        - Incidents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - incident_type
+                - title
+                - description
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                incident_type:
+                  type: string
+                  enum: [security, maintenance, noise, parking, safety, health, other]
+                  example: maintenance
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                  example: "Broken streetlight on Block 5"
+                description:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+                  example: "The streetlight near lot 10 has been non-functional for 3 days..."
+                location:
+                  type: string
+                  nullable: true
+                  maxLength: 300
+                  example: "Block 5, near Lot 10"
+                incident_date:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: When incident occurred (defaults to now)
+                severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                  default: medium
+                is_anonymous:
+                  type: boolean
+                  default: false
+                  description: Hide reporter identity from other residents
+                contact_number:
+                  type: string
+                  nullable: true
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                  description: Alternative contact (optional)
+                photo_urls:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                    format: uri
+                  description: Supabase Storage URLs for incident photos
+      responses:
+        '201':
+          description: Incident reported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /incident?id=eq.{incidentId}:
+    get:
+      summary: Get incident details
+      description: Returns single incident report with status updates
+      operationId: getIncident
+      tags:
+        - Incidents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Incident retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Incident'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update incident report
+      description: Updates incident details (only if status is submitted)
+      operationId: updateIncident
+      tags:
+        - Incidents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 5
+                  maxLength: 200
+                description:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+                location:
+                  type: string
+                  nullable: true
+                  maxLength: 300
+                severity:
+                  type: string
+                  enum: [low, medium, high, critical]
+                contact_number:
+                  type: string
+                  nullable: true
+                  pattern: '^(\+63|0)[0-9]{10}$'
+                photo_urls:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                    format: uri
+      responses:
+        '200':
+          description: Incident updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Cancel incident report
+      description: Withdraws incident report (only if status is submitted)
+      operationId: cancelIncident
+      tags:
+        - Incidents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Incident cancelled successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/get_incident_statistics:
+    post:
+      summary: Get household incident statistics
+      description: Returns incident counts by type and status
+      operationId: getIncidentStatistics
+      tags:
+        - Incident Analytics
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_reported:
+                    type: integer
+                  by_type:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  by_status:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  average_resolution_time_hours:
+                    type: number
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Incident:
+      type: object
+      description: Incident report entity (TO BE CREATED)
+      required:
+        - id
+        - tenant_id
+        - household_id
+        - incident_type
+        - title
+        - description
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        reported_by:
+          type: string
+          format: uuid
+          description: user_profile.id of reporter
+        incident_type:
+          type: string
+          enum: [security, maintenance, noise, parking, safety, health, other]
+        title:
+          type: string
+          maxLength: 200
+          example: "Broken streetlight on Block 5"
+        description:
+          type: string
+          maxLength: 2000
+        location:
+          type: string
+          nullable: true
+          maxLength: 300
+        incident_date:
+          type: string
+          format: date-time
+          description: When incident occurred
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+          default: medium
+        status:
+          type: string
+          enum: [submitted, acknowledged, investigating, resolved, closed]
+          default: submitted
+        is_anonymous:
+          type: boolean
+          default: false
+        contact_number:
+          type: string
+          nullable: true
+        photo_urls:
+          type: array
+          nullable: true
+          items:
+            type: string
+            format: uri
+          description: Incident photos from Supabase Storage
+        assigned_to:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin user assigned to handle
+        admin_notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Admin internal notes
+        resolution_notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Resolution details (visible to reporter)
+        resolved_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: cannot_modify_incident
+            message: Cannot modify incident after admin acknowledgement
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error - business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -1,0 +1,77 @@
+{
+  "name": "Village Management Resident Portal",
+  "short_name": "Village Portal",
+  "description": "Resident web application for village management - guest pre-authorization, vehicle stickers, payments, and more",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fefefe",
+  "theme_color": "#166088",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Pre-authorize Guest",
+      "short_name": "New Guest",
+      "description": "Quick access to guest pre-authorization",
+      "url": "/guests/new",
+      "icons": [{ "src": "/icons/guest-icon.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "View Announcements",
+      "short_name": "Announcements",
+      "description": "View village announcements",
+      "url": "/announcements",
+      "icons": [{ "src": "/icons/announcement-icon.png", "sizes": "96x96" }]
+    }
+  ]
+}

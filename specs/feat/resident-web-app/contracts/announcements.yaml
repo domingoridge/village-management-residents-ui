@@ -1,0 +1,409 @@
+openapi: 3.1.0
+info:
+  title: Announcements API
+  description: Village announcements and communications endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines 'announcement' and 'announcement_read' tables which DO NOT exist in the current schema.
+    Tables must be created before implementing these endpoints.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /announcement:
+    get:
+      summary: List announcements
+      description: Returns recent announcements for authenticated user's village (60-day window)
+      operationId: listAnnouncements
+      tags:
+        - Announcements
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [general, maintenance, event, emergency, policy, construction]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, normal, high, urgent]
+        - name: published_at
+          in: query
+          schema:
+            type: string
+            description: Filter by publish date (gte.2025-01-01)
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: published_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Announcements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Announcement'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /announcement?id=eq.{announcementId}:
+    get:
+      summary: Get announcement details
+      description: Returns single announcement with full content
+      operationId: getAnnouncement
+      tags:
+        - Announcements
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: announcementId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Announcement retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Announcement'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /announcement_read:
+    get:
+      summary: Get read announcements
+      description: Returns announcements marked as read by current user
+      operationId: getReadAnnouncements
+      tags:
+        - Announcement Tracking
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_profile_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Read announcements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnnouncementRead'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Mark announcement as read
+      description: Records that user has read an announcement
+      operationId: markAnnouncementRead
+      tags:
+        - Announcement Tracking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - announcement_id
+                - user_profile_id
+              properties:
+                announcement_id:
+                  type: string
+                  format: uuid
+                user_profile_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Announcement marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementRead'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /rpc/get_unread_announcements:
+    post:
+      summary: Get unread announcements
+      description: Returns announcements not yet read by current user
+      operationId: getUnreadAnnouncements
+      tags:
+        - Announcement Tracking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_profile_id
+                - tenant_id
+              properties:
+                user_profile_id:
+                  type: string
+                  format: uuid
+                tenant_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Unread announcements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Announcement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/get_announcement_stats:
+    post:
+      summary: Get announcement read statistics
+      description: Returns read/unread counts for current user
+      operationId: getAnnouncementStats
+      tags:
+        - Announcement Tracking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_profile_id
+                - tenant_id
+              properties:
+                user_profile_id:
+                  type: string
+                  format: uuid
+                tenant_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_announcements:
+                    type: integer
+                  read_count:
+                    type: integer
+                  unread_count:
+                    type: integer
+                  urgent_unread_count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Announcement:
+      type: object
+      description: Village announcement entity (TO BE CREATED)
+      required:
+        - id
+        - tenant_id
+        - title
+        - content
+        - category
+        - priority
+        - published_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: "Scheduled Water Interruption"
+        content:
+          type: string
+          minLength: 1
+          description: Full announcement content (rich text/markdown)
+          example: "Water service will be temporarily interrupted on Saturday..."
+        excerpt:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Short preview for list view
+        category:
+          type: string
+          enum: [general, maintenance, event, emergency, policy, construction]
+          example: maintenance
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          default: normal
+        target_audience:
+          type: string
+          nullable: true
+          enum: [all_residents, household_heads, specific_blocks]
+          default: all_residents
+        target_blocks:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: If target_audience is specific_blocks
+        attachment_urls:
+          type: array
+          nullable: true
+          items:
+            type: string
+            format: uri
+          description: Supabase Storage URLs for attachments
+        published_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional expiry date
+        author_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin user who created announcement
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AnnouncementRead:
+      type: object
+      description: Junction table tracking read announcements (TO BE CREATED)
+      required:
+        - id
+        - announcement_id
+        - user_profile_id
+        - read_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        announcement_id:
+          type: string
+          format: uuid
+        user_profile_id:
+          type: string
+          format: uuid
+        read_at:
+          type: string
+          format: date-time
+          description: Timestamp when user read the announcement
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: already_read
+            message: Announcement already marked as read

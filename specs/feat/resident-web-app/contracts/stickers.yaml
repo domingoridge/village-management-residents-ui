@@ -1,0 +1,552 @@
+openapi: 3.1.0
+info:
+  title: Vehicle Stickers API
+  description: Vehicle sticker request and management endpoints
+  version: 1.0.0
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /vehicle_sticker:
+    get:
+      summary: List household vehicle stickers
+      description: Returns all vehicle stickers for authenticated user's household
+      operationId: listVehicleStickers
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,vehicle_sticker_document(*)"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, expired, revoked, pending_renewal]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+      responses:
+        '200':
+          description: Vehicle stickers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VehicleStickerWithDocuments'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Request new vehicle sticker
+      description: Creates new vehicle sticker request
+      operationId: createStickerRequest
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - sticker_type
+                - vehicle_make
+                - vehicle_model
+                - vehicle_color
+                - plate_number
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                sticker_type:
+                  type: string
+                  enum: [resident, beneficial_user]
+                  description: Resident or beneficial user sticker
+                vehicle_make:
+                  type: string
+                  maxLength: 100
+                  example: "Toyota"
+                vehicle_model:
+                  type: string
+                  maxLength: 100
+                  example: "Vios"
+                vehicle_color:
+                  type: string
+                  maxLength: 50
+                  example: "White"
+                plate_number:
+                  type: string
+                  pattern: '^[A-Z0-9]{6,7}$'
+                  example: "ABC1234"
+                owner_name:
+                  type: string
+                  nullable: true
+                  maxLength: 200
+                  description: For beneficial user stickers
+                owner_relationship:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                  description: For beneficial user stickers
+                  example: "Brother"
+      responses:
+        '201':
+          description: Sticker request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleSticker'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /vehicle_sticker?id=eq.{stickerId}:
+    get:
+      summary: Get vehicle sticker details
+      description: Returns single vehicle sticker with documents
+      operationId: getVehicleSticker
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: stickerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,vehicle_sticker_document(*)"
+      responses:
+        '200':
+          description: Vehicle sticker retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VehicleStickerWithDocuments'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update vehicle sticker
+      description: Updates vehicle sticker information (before approval)
+      operationId: updateVehicleSticker
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: stickerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vehicle_make:
+                  type: string
+                  maxLength: 100
+                vehicle_model:
+                  type: string
+                  maxLength: 100
+                vehicle_color:
+                  type: string
+                  maxLength: 50
+                plate_number:
+                  type: string
+                  pattern: '^[A-Z0-9]{6,7}$'
+                owner_name:
+                  type: string
+                  nullable: true
+                  maxLength: 200
+                owner_relationship:
+                  type: string
+                  nullable: true
+                  maxLength: 100
+      responses:
+        '200':
+          description: Vehicle sticker updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleSticker'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Cancel sticker request
+      description: Cancels pending sticker request
+      operationId: cancelStickerRequest
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: stickerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Sticker request cancelled successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /vehicle_sticker_document:
+    post:
+      summary: Upload vehicle document
+      description: Uploads OR/CR/Insurance document for sticker request
+      operationId: uploadVehicleDocument
+      tags:
+        - Vehicle Documents
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle_sticker_id
+                - document_type
+                - file_url
+                - file_name
+                - file_size
+              properties:
+                vehicle_sticker_id:
+                  type: string
+                  format: uuid
+                document_type:
+                  type: string
+                  enum: [or, cr, insurance, authorization_letter]
+                  description: Document type
+                file_url:
+                  type: string
+                  format: uri
+                  description: Supabase Storage URL
+                file_name:
+                  type: string
+                  maxLength: 255
+                  example: "or-abc1234.pdf"
+                file_size:
+                  type: integer
+                  description: File size in bytes
+                  maximum: 10485760
+                  example: 2048576
+                mime_type:
+                  type: string
+                  nullable: true
+                  example: "application/pdf"
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleStickerDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+  /vehicle_sticker_document?id=eq.{documentId}:
+    delete:
+      summary: Delete vehicle document
+      description: Removes uploaded document from sticker request
+      operationId: deleteVehicleDocument
+      tags:
+        - Vehicle Documents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Document deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/request_sticker_renewal:
+    post:
+      summary: Request sticker renewal
+      description: Creates renewal request for expiring sticker
+      operationId: requestStickerRenewal
+      tags:
+        - Vehicle Stickers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sticker_id
+              properties:
+                sticker_id:
+                  type: string
+                  format: uuid
+                  description: ID of sticker to renew
+      responses:
+        '200':
+          description: Renewal request created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  renewal_sticker_id:
+                    type: string
+                    format: uuid
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    VehicleSticker:
+      type: object
+      description: Vehicle sticker entity from database
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        sticker_type:
+          type: string
+          enum: [resident, beneficial_user]
+        vehicle_make:
+          type: string
+          example: "Toyota"
+        vehicle_model:
+          type: string
+          example: "Vios"
+        vehicle_color:
+          type: string
+          example: "White"
+        plate_number:
+          type: string
+          example: "ABC1234"
+        rfid_number:
+          type: string
+          nullable: true
+          description: Assigned by admin
+        owner_name:
+          type: string
+          nullable: true
+          description: For beneficial user stickers
+        owner_relationship:
+          type: string
+          nullable: true
+          description: Relationship to household
+        status:
+          type: string
+          enum: [active, expired, revoked, pending_renewal]
+          default: pending_renewal
+        issue_date:
+          type: string
+          format: date
+          nullable: true
+          description: Admin sets on approval
+        expiry_date:
+          type: string
+          format: date
+          nullable: true
+          description: Auto-calculated from issue_date
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VehicleStickerDocument:
+      type: object
+      description: Vehicle document upload
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicle_sticker_id:
+          type: string
+          format: uuid
+        document_type:
+          type: string
+          enum: [or, cr, insurance, authorization_letter]
+        file_url:
+          type: string
+          format: uri
+        file_name:
+          type: string
+        file_size:
+          type: integer
+        mime_type:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    VehicleStickerWithDocuments:
+      allOf:
+        - $ref: '#/components/schemas/VehicleSticker'
+        - type: object
+          properties:
+            vehicle_sticker_document:
+              type: array
+              items:
+                $ref: '#/components/schemas/VehicleStickerDocument'
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: PGRST301
+            message: Cannot modify approved sticker
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "23505"
+            message: Plate number already registered
+
+    ValidationError:
+      description: Validation error - business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: sticker_quota_exceeded
+            message: Household sticker quota (4) exceeded
+
+    PayloadTooLarge:
+      description: File too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: file_too_large
+            message: Maximum file size is 10MB

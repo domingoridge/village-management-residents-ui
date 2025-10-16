@@ -1,0 +1,411 @@
+openapi: 3.1.0
+info:
+  title: Messages API
+  description: Resident-admin communication endpoints
+  version: 1.0.0
+  x-database-note: |
+    NOTE: This contract defines the 'message' table which DOES NOT exist in the current schema.
+    The table must be created before implementing these endpoints.
+
+servers:
+  - url: https://{project-ref}.supabase.co/rest/v1
+    description: Supabase REST API
+    variables:
+      project-ref:
+        default: your-project-ref
+
+paths:
+  /message:
+    get:
+      summary: List messages
+      description: Returns message thread for authenticated user
+      operationId: listMessages
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: household_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: thread_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by conversation thread
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, resolved, closed]
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+          headers:
+            Content-Range:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Send message to admin
+      description: Creates new message or reply in thread
+      operationId: sendMessage
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+                - subject
+                - content
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+                thread_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: For replies, reference original thread
+                subject:
+                  type: string
+                  minLength: 3
+                  maxLength: 200
+                  example: "Request for gate pass replacement"
+                content:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+                  example: "I would like to request a replacement for my lost gate pass..."
+                category:
+                  type: string
+                  nullable: true
+                  enum: [general_inquiry, complaint, request, feedback, other]
+                  default: general_inquiry
+                attachment_urls:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                    format: uri
+                  description: Supabase Storage URLs for attachments
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /message?id=eq.{messageId}:
+    get:
+      summary: Get message details
+      description: Returns single message
+      operationId: getMessage
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+                maxItems: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Mark message as read
+      description: Updates message read status
+      operationId: markMessageRead
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_read:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Message updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rpc/get_message_threads:
+    post:
+      summary: Get conversation threads
+      description: Returns grouped message threads for household
+      operationId: getMessageThreads
+      tags:
+        - Message Threads
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - household_id
+              properties:
+                household_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Threads retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    thread_id:
+                      type: string
+                      format: uuid
+                    subject:
+                      type: string
+                    last_message_at:
+                      type: string
+                      format: date-time
+                    message_count:
+                      type: integer
+                    unread_count:
+                      type: integer
+                    status:
+                      type: string
+                      enum: [open, resolved, closed]
+                    latest_message_preview:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rpc/get_thread_messages:
+    post:
+      summary: Get all messages in thread
+      description: Returns chronological messages in conversation thread
+      operationId: getThreadMessages
+      tags:
+        - Message Threads
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - thread_id
+              properties:
+                thread_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Thread messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Message:
+      type: object
+      description: Message entity (TO BE CREATED)
+      required:
+        - id
+        - tenant_id
+        - household_id
+        - thread_id
+        - subject
+        - content
+        - sender_type
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        household_id:
+          type: string
+          format: uuid
+        thread_id:
+          type: string
+          format: uuid
+          description: Groups related messages
+        sender_type:
+          type: string
+          enum: [resident, admin]
+          description: Who sent the message
+        sender_id:
+          type: string
+          format: uuid
+          description: user_profile.id of sender
+        subject:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+          maxLength: 2000
+        category:
+          type: string
+          nullable: true
+          enum: [general_inquiry, complaint, request, feedback, other]
+        attachment_urls:
+          type: array
+          nullable: true
+          items:
+            type: string
+            format: uri
+        is_read:
+          type: boolean
+          default: false
+          description: Read status for recipient
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [open, resolved, closed]
+          default: open
+          description: Thread status
+        admin_assigned_to:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin user assigned to thread
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error - business rule violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
