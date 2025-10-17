@@ -1,0 +1,562 @@
+openapi: 3.0.3
+info:
+  title: Guest Management API - Date Range Enhancement
+  description: |
+    API contract for guest pre-authorization with visit date range support.
+    This contract defines the changes to the existing guests API to support
+    visit_start_date, visit_end_date, and visit_duration fields.
+  version: 2.0.0
+  contact:
+    name: Village Management API Team
+
+servers:
+  - url: https://api.villagemanagement.com/v1
+    description: Production server
+  - url: https://staging-api.villagemanagement.com/v1
+    description: Staging server
+
+tags:
+  - name: Guests
+    description: Guest pre-authorization operations
+
+paths:
+  /guests:
+    post:
+      tags:
+        - Guests
+      summary: Create a new guest pre-authorization
+      description: |
+        Creates a new guest pre-authorization with visit date range.
+        The visit_duration field will be auto-calculated by the backend if not provided.
+      operationId: createGuest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGuestRequest'
+            examples:
+              singleDayVisit:
+                summary: Single-day visit
+                value:
+                  household_id: "987fcdeb-51a2-43d1-b9c8-142516273000"
+                  guest_name: "Juan Dela Cruz"
+                  phone: "0917-123-4567"
+                  vehicle_plate: "ABC-1234"
+                  purpose: "House visit"
+                  visit_start_date: "2025-10-20"
+                  visit_end_date: "2025-10-20"
+                  expected_arrival_time: "14:00"
+              multiDayVisit:
+                summary: Multi-day visit
+                value:
+                  household_id: "987fcdeb-51a2-43d1-b9c8-142516273000"
+                  guest_name: "Maria Santos"
+                  phone: "0918-987-6543"
+                  purpose: "Family visit for holidays"
+                  visit_start_date: "2025-12-20"
+                  visit_end_date: "2025-12-27"
+                  special_instructions: "Relatives from province, multiple entries expected"
+      responses:
+        '201':
+          description: Guest pre-authorization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestResponse'
+              example:
+                id: "223e4567-e89b-12d3-a456-426614174001"
+                household_id: "987fcdeb-51a2-43d1-b9c8-142516273000"
+                guest_name: "Maria Santos"
+                phone: "0918-987-6543"
+                vehicle_plate: null
+                purpose: "Family visit for holidays"
+                visit_start_date: "2025-12-20"
+                visit_end_date: "2025-12-27"
+                visit_duration: 8
+                expected_arrival_time: null
+                special_instructions: "Relatives from province, multiple entries expected"
+                status: "pending"
+                created_at: "2025-10-17T11:15:00Z"
+                updated_at: "2025-10-17T11:15:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    get:
+      tags:
+        - Guests
+      summary: List guest pre-authorizations
+      description: |
+        Retrieves a paginated list of guest pre-authorizations with optional filters.
+        Supports filtering by date range to find guests visiting during a specific period.
+      operationId: listGuests
+      parameters:
+        - name: household_id
+          in: query
+          description: Filter by household ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by guest status
+          schema:
+            type: string
+            enum: [pending, approved, at_gate, denied, completed]
+        - name: visit_date_from
+          in: query
+          description: Filter guests visiting on or after this date
+          schema:
+            type: string
+            format: date
+            example: "2025-10-20"
+        - name: visit_date_to
+          in: query
+          description: Filter guests visiting on or before this date
+          schema:
+            type: string
+            format: date
+            example: "2025-10-27"
+        - name: page
+          in: query
+          description: Page number (1-indexed)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: List of guest pre-authorizations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /guests/{guestId}:
+    get:
+      tags:
+        - Guests
+      summary: Get guest details
+      description: Retrieves detailed information about a specific guest pre-authorization
+      operationId: getGuest
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          description: Guest ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Guest details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Guests
+      summary: Update guest pre-authorization
+      description: |
+        Updates an existing guest pre-authorization.
+        If visit_start_date or visit_end_date is changed, visit_duration will be recalculated.
+      operationId: updateGuest
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          description: Guest ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGuestRequest'
+            example:
+              visit_end_date: "2025-12-28"
+              special_instructions: "Extended stay - now until Dec 28"
+      responses:
+        '200':
+          description: Guest updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Guests
+      summary: Delete guest pre-authorization
+      description: Deletes a guest pre-authorization (soft delete)
+      operationId: deleteGuest
+      parameters:
+        - name: guestId
+          in: path
+          required: true
+          description: Guest ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Guest deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    CreateGuestRequest:
+      type: object
+      required:
+        - household_id
+        - guest_name
+        - purpose
+        - visit_start_date
+        - visit_end_date
+      properties:
+        household_id:
+          type: string
+          format: uuid
+          description: ID of the household authorizing the guest
+        guest_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Full name of the guest
+          example: "Juan Dela Cruz"
+        phone:
+          type: string
+          pattern: '^(09\d{2}-\d{3}-\d{4}|\+639\d{9})$'
+          description: Contact phone number (optional)
+          example: "0917-123-4567"
+        vehicle_plate:
+          type: string
+          maxLength: 20
+          description: Vehicle plate number (optional)
+          example: "ABC-1234"
+        purpose:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Purpose of the visit
+          example: "House visit"
+        visit_start_date:
+          type: string
+          format: date
+          description: |
+            First day the guest is authorized to visit.
+            Must be today or future date, maximum 30 days in advance.
+          example: "2025-10-20"
+        visit_end_date:
+          type: string
+          format: date
+          description: |
+            Last day the guest is authorized to visit.
+            Must be on or after visit_start_date.
+          example: "2025-10-27"
+        visit_duration:
+          type: integer
+          minimum: 1
+          description: |
+            Number of days for the visit (inclusive of start and end dates).
+            If not provided, will be auto-calculated by backend.
+          example: 8
+          readOnly: true
+        expected_arrival_time:
+          type: string
+          format: time
+          pattern: '^([01]\d|2[0-3]):([0-5]\d)$'
+          description: Expected arrival time (optional, HH:mm format)
+          example: "14:00"
+        special_instructions:
+          type: string
+          maxLength: 500
+          description: Additional instructions for guards (optional)
+          example: "Guest will arrive in a blue sedan"
+
+    UpdateGuestRequest:
+      type: object
+      properties:
+        guest_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          pattern: '^(09\d{2}-\d{3}-\d{4}|\+639\d{9})$'
+        vehicle_plate:
+          type: string
+          maxLength: 20
+        purpose:
+          type: string
+          minLength: 1
+          maxLength: 200
+        visit_start_date:
+          type: string
+          format: date
+        visit_end_date:
+          type: string
+          format: date
+        expected_arrival_time:
+          type: string
+          format: time
+          pattern: '^([01]\d|2[0-3]):([0-5]\d)$'
+        special_instructions:
+          type: string
+          maxLength: 500
+
+    GuestResponse:
+      type: object
+      required:
+        - id
+        - household_id
+        - guest_name
+        - purpose
+        - visit_start_date
+        - visit_end_date
+        - visit_duration
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique guest ID
+        household_id:
+          type: string
+          format: uuid
+          description: Associated household ID
+        guest_name:
+          type: string
+          description: Full name of the guest
+        phone:
+          type: string
+          nullable: true
+          description: Contact phone number
+        vehicle_plate:
+          type: string
+          nullable: true
+          description: Vehicle plate number
+        purpose:
+          type: string
+          description: Purpose of visit
+        visit_start_date:
+          type: string
+          format: date
+          description: First authorized visit date
+        visit_end_date:
+          type: string
+          format: date
+          description: Last authorized visit date
+        visit_duration:
+          type: integer
+          description: Number of days (calculated automatically)
+        expected_arrival_time:
+          type: string
+          format: time
+          nullable: true
+          description: Expected arrival time
+        special_instructions:
+          type: string
+          nullable: true
+          description: Special instructions for guards
+        status:
+          type: string
+          enum: [pending, approved, at_gate, denied, completed]
+          description: Current status of the guest authorization
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when authorization was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when authorization was last updated
+
+    GuestListResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - page_size
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+          example: 1
+        page_size:
+          type: integer
+          description: Number of items per page
+          example: 10
+        total_items:
+          type: integer
+          description: Total number of items
+          example: 45
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 5
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+    ValidationError:
+      type: object
+      required:
+        - error
+        - message
+        - validation_errors
+      properties:
+        error:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "Request validation failed"
+        validation_errors:
+          type: array
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                description: Field name that failed validation
+                example: "visit_end_date"
+              message:
+                type: string
+                description: Validation error message
+                example: "End date must be on or after start date"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "bad_request"
+            message: "Invalid request format"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "unauthorized"
+            message: "Authentication required"
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "forbidden"
+            message: "You do not have permission to access this resource"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "not_found"
+            message: "Guest not found"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            error: "validation_error"
+            message: "Request validation failed"
+            validation_errors:
+              - field: "visit_end_date"
+                message: "End date must be on or after start date"
+              - field: "visit_start_date"
+                message: "Cannot be more than 30 days in the future"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication endpoint
+
+security:
+  - BearerAuth: []

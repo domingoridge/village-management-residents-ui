@@ -3,6 +3,7 @@ import {
   isValidPhoneNumber,
   isValidPlateNumber,
   isNotPastDate,
+  isWithin30Days,
 } from "@/lib/utils/validation";
 
 /**
@@ -10,46 +11,67 @@ import {
  */
 
 // Base guest schema for creation
-export const createGuestSchema = z.object({
-  guestName: z
-    .string()
-    .min(1, "Guest name is required")
-    .max(100, "Guest name must be less than 100 characters"),
+export const createGuestSchema = z
+  .object({
+    guestName: z
+      .string()
+      .min(1, "Guest name is required")
+      .max(100, "Guest name must be less than 100 characters"),
 
-  phone: z
-    .string()
-    .optional()
-    .refine(
-      (val) => !val || isValidPhoneNumber(val),
-      "Invalid phone number format (use 09XX-XXX-XXXX or +639XXXXXXXXX)",
-    ),
+    phone: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || isValidPhoneNumber(val),
+        "Invalid phone number format (use 09XX-XXX-XXXX or +639XXXXXXXXX)",
+      ),
 
-  vehiclePlate: z
-    .string()
-    .optional()
-    .transform((val) => val?.toUpperCase())
-    .refine(
-      (val) => !val || isValidPlateNumber(val),
-      "Invalid plate number format",
-    ),
+    vehiclePlate: z
+      .string()
+      .optional()
+      .transform((val) => val?.toUpperCase())
+      .refine(
+        (val) => !val || isValidPlateNumber(val),
+        "Invalid plate number format",
+      ),
 
-  purpose: z
-    .string()
-    .min(1, "Purpose is required")
-    .max(200, "Purpose must be less than 200 characters"),
+    purpose: z
+      .string()
+      .min(1, "Purpose is required")
+      .max(200, "Purpose must be less than 200 characters"),
 
-  expectedArrivalDate: z
-    .string()
-    .min(1, "Expected arrival date is required")
-    .refine(isNotPastDate, "Arrival date cannot be in the past"),
+    visitDateStart: z
+      .string()
+      .min(1, "Visit start date is required")
+      .refine(isNotPastDate, "Start date cannot be in the past")
+      .refine(
+        isWithin30Days,
+        "Cannot pre-authorize more than 30 days in advance",
+      ),
 
-  expectedArrivalTime: z.string().optional(),
+    visitDateEnd: z.string().min(1, "Visit end date is required"),
 
-  specialInstructions: z
-    .string()
-    .max(500, "Special instructions must be less than 500 characters")
-    .optional(),
-});
+    visitDuration: z.number().int().positive().optional(),
+
+    expectedArrivalTime: z.string().optional(),
+
+    specialInstructions: z
+      .string()
+      .max(500, "Special instructions must be less than 500 characters")
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      // End date must be >= start date
+      const start = new Date(data.visitDateStart);
+      const end = new Date(data.visitDateEnd);
+      return end >= start;
+    },
+    {
+      message: "Visit end date must be on or after start date",
+      path: ["visitDateEnd"],
+    },
+  );
 
 // Update guest schema (only allow updating certain fields)
 export const updateGuestSchema = createGuestSchema.partial();

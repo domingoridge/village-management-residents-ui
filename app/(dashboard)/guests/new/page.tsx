@@ -20,7 +20,7 @@ import type { CreateGuestInput } from "@/lib/schemas/guest";
 
 export default function NewGuestPage() {
   const router = useRouter();
-  const { resident } = useAuthStore();
+  const { resident, tenantUser } = useAuthStore();
   const { addToast } = useUIStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,9 +33,22 @@ export default function NewGuestPage() {
       return;
     }
 
+    if (!tenantUser?.tenantId) {
+      addToast({
+        type: "error",
+        message: "Tenant information not found",
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
-      await createGuest(data, resident.householdId);
+      await createGuest(
+        data,
+        resident.householdId,
+        tenantUser.tenantId,
+        tenantUser.id,
+      );
 
       addToast({
         type: "success",

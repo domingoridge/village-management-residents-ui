@@ -1,10 +1,15 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { createGuestSchema, type CreateGuestInput } from "@/lib/schemas/guest";
+import {
+  toISODateString,
+  calculateVisitDuration,
+} from "@/lib/utils/dateHelpers";
 
 interface GuestFormProps {
   onSubmit: (data: CreateGuestInput) => Promise<void>;
@@ -22,14 +27,29 @@ export function GuestForm({
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateGuestInput>({
     resolver: zodResolver(createGuestSchema),
     defaultValues: initialData,
   });
 
+  const visitDateStart = watch("visitDateStart");
+  const visitDateEnd = watch("visitDateEnd");
+
+  const handleFormSubmit = (data: CreateGuestInput) => {
+    // Auto-calculate duration before submission
+    const duration = calculateVisitDuration(
+      data.visitDateStart,
+      data.visitDateEnd,
+    );
+    return onSubmit({ ...data, visitDuration: duration });
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       {/* Guest Name */}
       <Input
         label="Guest Name"
@@ -84,26 +104,38 @@ export function GuestForm({
         )}
       </div>
 
-      {/* Expected Arrival */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Input
-          label="Expected Arrival Date"
-          type="date"
-          error={errors.expectedArrivalDate?.message}
-          fullWidth
-          required
-          {...register("expectedArrivalDate")}
-        />
+      {/* Visit Date Range */}
+      <Controller
+        name="visitDateStart"
+        control={control}
+        render={() => (
+          <DateRangePicker
+            value={
+              visitDateStart && visitDateEnd
+                ? [new Date(visitDateStart), new Date(visitDateEnd)]
+                : undefined
+            }
+            onChange={([start, end]) => {
+              setValue("visitDateStart", toISODateString(start));
+              setValue("visitDateEnd", toISODateString(end));
+            }}
+            error={
+              errors.visitDateStart?.message || errors.visitDateEnd?.message
+            }
+            disabled={isLoading}
+          />
+        )}
+      />
 
-        <Input
-          label="Expected Arrival Time"
-          type="time"
-          error={errors.expectedArrivalTime?.message}
-          helperText="Optional"
-          fullWidth
-          {...register("expectedArrivalTime")}
-        />
-      </div>
+      {/* Expected Arrival Time */}
+      <Input
+        label="Expected Arrival Time"
+        type="time"
+        error={errors.expectedArrivalTime?.message}
+        helperText="Optional"
+        fullWidth
+        {...register("expectedArrivalTime")}
+      />
 
       {/* Special Instructions */}
       <div>

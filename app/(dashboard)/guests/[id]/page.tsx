@@ -161,20 +161,37 @@ export default function GuestDetailPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Expected Arrival */}
+            {/* Visit Date(s) */}
             <div>
               <h3 className="mb-3 font-semibold text-neutral">
-                Expected Arrival
+                Visit Date
+                {guest.visitDateEnd &&
+                guest.visitDateEnd !== guest.visitDateStart
+                  ? "s"
+                  : ""}
               </h3>
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-neutral/50" />
-                  <span>{formatDate(guest.expectedArrivalDate)}</span>
+                  <span>
+                    {formatDate(guest.visitDateStart)}
+                    {guest.visitDateEnd &&
+                      guest.visitDateEnd !== guest.visitDateStart && (
+                        <> to {formatDate(guest.visitDateEnd)}</>
+                      )}
+                    {guest.visitDuration && (
+                      <span className="ml-2 text-sm text-neutral/70">
+                        ({guest.visitDuration} day
+                        {guest.visitDuration !== 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {guest.expectedArrivalTime && (
                   <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-neutral/50" />
                     <span>
+                      Expected arrival:{" "}
                       {formatTime(
                         new Date(`2000-01-01T${guest.expectedArrivalTime}`),
                       )}

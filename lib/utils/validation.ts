@@ -164,3 +164,25 @@ export function sanitizeInput(input: string): string {
     .replace(/'/g, "&#x27;")
     .replace(/\//g, "&#x2F;");
 }
+
+/**
+ * Check if date is within 30 days from today
+ */
+export function isWithin30Days(dateString: string): boolean {
+  const inputDate = new Date(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const maxDate = new Date(today);
+  maxDate.setDate(today.getDate() + 30);
+
+  return inputDate <= maxDate;
+}
+
+/**
+ * Validate date range (end date must be >= start date)
+ */
+export function isValidDateRange(startDate: string, endDate: string): boolean {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  return end >= start;
+}
