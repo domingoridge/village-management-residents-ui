@@ -25,11 +25,15 @@ export function GuestCard({ guest }: GuestCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {/* Expected Arrival */}
+            {/* Visit Date(s) */}
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="h-4 w-4 text-neutral/50" />
               <span className="text-neutral/70">
-                {formatDate(guest.expectedArrivalDate)}
+                {formatDate(guest.visitDateStart)}
+                {guest.visitDateEnd &&
+                  guest.visitDateEnd !== guest.visitDateStart && (
+                    <> - {formatDate(guest.visitDateEnd)}</>
+                  )}
                 {guest.expectedArrivalTime && (
                   <>
                     {" "}

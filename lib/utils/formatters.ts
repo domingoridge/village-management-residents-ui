@@ -14,7 +14,7 @@ export function formatDate(
   },
 ): string {
   const dateObj = typeof date === "string" ? new Date(date) : date;
-  return dateObj.toLocaleDateString("en-PH", options);
+  return dateObj?.toLocaleDateString("en-PH", options);
 }
 
 /**

@@ -28,11 +28,11 @@ export async function fetchGuests(filters?: GuestFilterParams) {
   }
 
   if (filters?.startDate) {
-    query = query.gte("expected_arrival_date", filters.startDate);
+    query = query.gte("visit_date_start", filters.startDate);
   }
 
   if (filters?.endDate) {
-    query = query.lte("expected_arrival_date", filters.endDate);
+    query = query.lte("visit_date_end", filters.endDate);
   }
 
   if (filters?.search) {
@@ -62,7 +62,9 @@ export async function fetchGuests(filters?: GuestFilterParams) {
     phone: g.phone,
     vehiclePlate: g.vehicle_plate,
     purpose: g.purpose,
-    expectedArrivalDate: g.expected_arrival_date,
+    visitDateStart: g.visit_date_start,
+    visitDateEnd: g.visit_date_end,
+    visitDuration: g.visit_duration,
     expectedArrivalTime: g.expected_arrival_time,
     specialInstructions: g.special_instructions,
     status: g.status,
@@ -104,7 +106,9 @@ export async function fetchGuestById(id: string): Promise<Guest> {
     phone: data.phone,
     vehiclePlate: data.vehicle_plate,
     purpose: data.purpose,
-    expectedArrivalDate: data.expected_arrival_date,
+    visitDateStart: data.visit_start_date,
+    visitDateEnd: data.visit_end_date,
+    visitDuration: data.visit_duration,
     expectedArrivalTime: data.expected_arrival_time,
     specialInstructions: data.special_instructions,
     status: data.status,
@@ -122,18 +126,24 @@ export async function fetchGuestById(id: string): Promise<Guest> {
 export async function createGuest(
   input: CreateGuestInput,
   householdId: string,
+  tenantId: string,
+  tenantUserId: string,
 ): Promise<Guest> {
   const supabase = createClient();
 
   const { data, error } = await supabase
     .from("guests")
     .insert({
+      tenant_id: tenantId,
       household_id: householdId,
       guest_name: input.guestName,
-      phone: input.phone || null,
+      guest_phone: input.phone || null,
       vehicle_plate: input.vehiclePlate || null,
-      purpose: input.purpose,
-      expected_arrival_date: input.expectedArrivalDate,
+      visit_purpose: input.purpose,
+      visit_date_start: input.visitDateStart,
+      visit_date_end: input.visitDateEnd,
+      visit_duration: input.visitDuration || null,
+      announced_by: tenantUserId,
       expected_arrival_time: input.expectedArrivalTime || null,
       special_instructions: input.specialInstructions || null,
       status: "pending",
@@ -151,7 +161,9 @@ export async function createGuest(
     phone: data.phone,
     vehiclePlate: data.vehicle_plate,
     purpose: data.purpose,
-    expectedArrivalDate: data.expected_arrival_date,
+    visitDateStart: data.visit_start_date,
+    visitDateEnd: data.visit_end_date,
+    visitDuration: data.visit_duration,
     expectedArrivalTime: data.expected_arrival_time,
     specialInstructions: data.special_instructions,
     status: data.status,
@@ -178,8 +190,12 @@ export async function updateGuest(
   if (input.vehiclePlate !== undefined)
     updateData.vehicle_plate = input.vehiclePlate || null;
   if (input.purpose !== undefined) updateData.purpose = input.purpose;
-  if (input.expectedArrivalDate !== undefined)
-    updateData.expected_arrival_date = input.expectedArrivalDate;
+  if (input.visitDateStart !== undefined)
+    updateData.visit_start_date = input.visitDateStart;
+  if (input.visitDateEnd !== undefined)
+    updateData.visit_end_date = input.visitDateEnd;
+  if (input.visitDuration !== undefined)
+    updateData.visit_duration = input.visitDuration || null;
   if (input.expectedArrivalTime !== undefined)
     updateData.expected_arrival_time = input.expectedArrivalTime || null;
   if (input.specialInstructions !== undefined)
@@ -202,7 +218,9 @@ export async function updateGuest(
     phone: data.phone,
     vehiclePlate: data.vehicle_plate,
     purpose: data.purpose,
-    expectedArrivalDate: data.expected_arrival_date,
+    visitDateStart: data.visit_start_date,
+    visitDateEnd: data.visit_end_date,
+    visitDuration: data.visit_duration,
     expectedArrivalTime: data.expected_arrival_time,
     specialInstructions: data.special_instructions,
     status: data.status,

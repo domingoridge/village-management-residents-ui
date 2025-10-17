@@ -84,7 +84,9 @@ export interface Guest {
   phone: string | null;
   vehiclePlate: string | null;
   purpose: string;
-  expectedArrivalDate: string;
+  visitDateStart: string;
+  visitDateEnd: string;
+  visitDuration: number | null;
   expectedArrivalTime: string | null;
   specialInstructions: string | null;
   status: GuestStatus;

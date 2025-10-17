@@ -23,7 +23,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     },
     ref,
   ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    const inputId =
+      id || props.name || `input-${Math.random().toString(36).substr(2, 9)}`;
 
     return (
       <div className={cn("flex flex-col gap-1", fullWidth && "w-full")}>
