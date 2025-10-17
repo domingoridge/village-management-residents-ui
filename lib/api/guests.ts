@@ -18,7 +18,7 @@ export async function fetchGuests(filters?: GuestFilterParams) {
   const supabase = createClient();
 
   let query = supabase
-    .from("guest")
+    .from("guests")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false });
 
@@ -126,7 +126,7 @@ export async function createGuest(
   const supabase = createClient();
 
   const { data, error } = await supabase
-    .from("guest")
+    .from("guests")
     .insert({
       household_id: householdId,
       guest_name: input.guestName,
@@ -186,7 +186,7 @@ export async function updateGuest(
     updateData.special_instructions = input.specialInstructions || null;
 
   const { data, error } = await supabase
-    .from("guest")
+    .from("guests")
     .update(updateData)
     .eq("id", id)
     .select()
@@ -220,7 +220,7 @@ export async function updateGuest(
 export async function deleteGuest(id: string): Promise<void> {
   const supabase = createClient();
 
-  const { error } = await supabase.from("guest").delete().eq("id", id);
+  const { error } = await supabase.from("guests").delete().eq("id", id);
 
   if (error) throw error;
 }
@@ -231,7 +231,7 @@ export async function deleteGuest(id: string): Promise<void> {
 export async function fetchGuestStats() {
   const supabase = createClient();
 
-  const { data, error } = await supabase.from("guest").select("status");
+  const { data, error } = await supabase.from("guests").select("status");
 
   if (error) throw error;
 

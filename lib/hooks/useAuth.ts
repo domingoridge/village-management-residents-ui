@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
+import {
+  createAuthService,
+  type TenantInfo,
+} from "@/lib/services/auth.service";
 
 /**
  * Hook for managing authentication state and actions
@@ -95,7 +99,7 @@ export function useAuth() {
           .select("*")
           .eq("user_profile_id", profile.id)
           .eq("is_active", true)
-          .single();
+          .maybeSingle();
 
         if (tenantError) throw tenantError;
 
@@ -117,7 +121,7 @@ export function useAuth() {
             .from("resident")
             .select("*")
             .eq("tenant_user_id", tenantUser.id)
-            .single();
+            .maybeSingle();
 
           if (!residentError && resident) {
             authStore.setResident({
@@ -318,6 +322,80 @@ export function useAuth() {
     }
   };
 
+  /**
+   * Switch tenant context
+   */
+  const switchTenant = async (tenantId: string): Promise<void> => {
+    try {
+      authStore.setLoading(true);
+      authStore.setError(null);
+
+      const authService = createAuthService(supabase);
+      await authService.switchTenant(tenantId);
+
+      // Refresh user data after tenant switch
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        await fetchUserData(user.id);
+      }
+
+      addToast({
+        type: "success",
+        message: "Successfully switched tenant",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to switch tenant";
+      authStore.setError(message);
+      addToast({
+        type: "error",
+        message,
+      });
+      throw error;
+    } finally {
+      authStore.setLoading(false);
+    }
+  };
+
+  /**
+   * Get list of accessible tenants
+   */
+  const getTenants = async (): Promise<TenantInfo[]> => {
+    try {
+      const authService = createAuthService(supabase);
+      return await authService.getTenants();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to fetch tenants";
+      authStore.setError(message);
+      addToast({
+        type: "error",
+        message,
+      });
+      return [];
+    }
+  };
+
+  /**
+   * Get current tenant ID from JWT
+   */
+  const getCurrentTenantId = async (): Promise<string | null> => {
+    try {
+      const authService = createAuthService(supabase);
+      return await authService.getCurrentTenantId();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to get current tenant ID";
+      authStore.setError(message);
+      return null;
+    }
+  };
+
   return {
     // State
     user: authStore.user,
@@ -337,5 +415,8 @@ export function useAuth() {
     signOut,
     resetPassword,
     updatePassword,
+    switchTenant,
+    getTenants,
+    getCurrentTenantId,
   };
 }
