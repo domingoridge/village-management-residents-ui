@@ -54,7 +54,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signIn } = useAuth();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -67,13 +67,25 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    const result = await signIn(data.email, data.password);
-    setIsLoading(false);
+    try {
+      const result = await login(data.email, data.password);
 
-    if (result.success) {
-      const redirectParam = searchParams.get("redirect") || ROUTES.DASHBOARD;
-      const validatedRedirect = validateRedirectUrl(redirectParam);
-      router.push(validatedRedirect);
+      // Handle successful login - residents typically have single tenant
+      if (result.activeTenant || result.tenants.length > 0) {
+        const redirectParam = searchParams.get("redirect") || ROUTES.DASHBOARD;
+        const validatedRedirect = validateRedirectUrl(redirectParam);
+        router.push(validatedRedirect);
+      } else {
+        // No tenants available
+        throw new Error(
+          "You are not assigned to any communities. Please contact your administrator.",
+        );
+      }
+    } catch (error) {
+      // Error toast is already shown by useAuth
+      console.error("Login failed:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 

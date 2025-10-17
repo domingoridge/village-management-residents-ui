@@ -8,6 +8,7 @@ import { useUIStore } from "@/store/ui";
 import {
   createAuthService,
   type TenantInfo,
+  type LoginResult,
 } from "@/lib/services/auth.service";
 
 /**
@@ -147,7 +148,20 @@ export function useAuth() {
   };
 
   /**
-   * Sign in with email and password
+   * Login with email and password using auth service
+   * This method handles tenant context initialization
+   */
+  const login = async (
+    email: string,
+    password: string,
+  ): Promise<LoginResult> => {
+    const authService = createAuthService(supabase);
+    return await authService.login(email, password);
+  };
+
+  /**
+   * Sign in with email and password (legacy method)
+   * For backward compatibility - prefer using login() for full tenant context
    */
   const signIn = async (email: string, password: string) => {
     try {
@@ -326,38 +340,8 @@ export function useAuth() {
    * Switch tenant context
    */
   const switchTenant = async (tenantId: string): Promise<void> => {
-    try {
-      authStore.setLoading(true);
-      authStore.setError(null);
-
-      const authService = createAuthService(supabase);
-      await authService.switchTenant(tenantId);
-
-      // Refresh user data after tenant switch
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        await fetchUserData(user.id);
-      }
-
-      addToast({
-        type: "success",
-        message: "Successfully switched tenant",
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to switch tenant";
-      authStore.setError(message);
-      addToast({
-        type: "error",
-        message,
-      });
-      throw error;
-    } finally {
-      authStore.setLoading(false);
-    }
+    const authService = createAuthService(supabase);
+    await authService.switchTenant(tenantId);
   };
 
   /**
@@ -410,6 +394,7 @@ export function useAuth() {
     fullName: authStore.fullName(),
 
     // Actions
+    login,
     signIn,
     signUp,
     signOut,

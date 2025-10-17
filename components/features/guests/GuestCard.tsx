@@ -55,12 +55,12 @@ export function GuestCard({ guest }: GuestCardProps) {
             )}
 
             {/* Vehicle Plate */}
-            {guest.vehiclePlate && (
-              <div className="flex items-center gap-2 text-sm">
-                <Car className="h-4 w-4 text-neutral/50" />
-                <span className="text-neutral/70">{guest.vehiclePlate}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-sm">
+              <Car className="h-4 w-4 text-neutral/50" />
+              <span className="text-neutral/70">
+                {guest.vehiclePlate ? guest.vehiclePlate : "N/A"}
+              </span>
+            </div>
 
             {/* Created At */}
             <div className="flex items-center gap-2 text-sm">
