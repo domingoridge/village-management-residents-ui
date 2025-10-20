@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { stickerService } from "@/lib/services/stickerService";
+import { fetchStickerRequests } from "@/lib/api/stickers";
 import { useUIStore } from "@/store/ui";
 import type { VehicleFormData } from "@/lib/schemas/sticker";
+import type { StickerFilterParams } from "@/types/sticker";
 
 // Query keys for React Query
 export const STICKER_QUERIES = {
@@ -10,6 +12,16 @@ export const STICKER_QUERIES = {
     [...STICKER_QUERIES.all, "quota", householdId] as const,
   list: (householdId: string) =>
     [...STICKER_QUERIES.all, "list", householdId] as const,
+};
+
+// Query key factory for sticker list with filters
+export const stickerKeys = {
+  all: ["stickers"] as const,
+  lists: () => [...stickerKeys.all, "list"] as const,
+  list: (filters?: StickerFilterParams) =>
+    [...stickerKeys.lists(), filters] as const,
+  details: () => [...stickerKeys.all, "detail"] as const,
+  detail: (id: string) => [...stickerKeys.details(), id] as const,
 };
 
 /**
@@ -27,15 +39,17 @@ export function useHouseholdQuota(householdId: string | undefined) {
 }
 
 /**
- * Hook to fetch sticker requests for a household
- * @param householdId - The household ID
- * @returns Query result with list of sticker requests
+ * Hook to fetch sticker requests with filtering and pagination
+ * Replaces old version that only took householdId
+ * @param filters - Optional filter parameters (status, householdId, page, pageSize)
+ * @returns Query result with paginated sticker requests
  */
-export function useStickerRequests(householdId: string | undefined) {
+export function useStickerRequests(filters?: StickerFilterParams) {
   return useQuery({
-    queryKey: STICKER_QUERIES.list(householdId!),
-    queryFn: () => stickerService.getStickerRequests(householdId!),
-    enabled: !!householdId,
+    queryKey: stickerKeys.list(filters),
+    queryFn: () => fetchStickerRequests(filters),
+    enabled: !!filters?.householdId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -126,11 +140,10 @@ export function useCreateStickerRequests() {
       });
 
       // Show success toast with all request numbers
-      const requestNumbers = data.map((r) => r.requestNumber).join(", ");
       const vehicleCount = data.length;
       addToast({
         type: "success",
-        message: `${vehicleCount} sticker request${vehicleCount > 1 ? "s" : ""} submitted successfully! Request #: ${requestNumbers}`,
+        message: `${vehicleCount} sticker request${vehicleCount > 1 ? "s" : ""} submitted successfully!`,
       });
     },
     onError: (error) => {
