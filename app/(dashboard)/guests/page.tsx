@@ -1,68 +1,47 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Plus, Filter } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { GuestCard } from "@/components/features/guests/GuestCard";
 import { Pagination, PaginationInfo } from "@/components/ui/Pagination";
-import { Skeleton, SkeletonList } from "@/components/ui/Skeleton";
-import { fetchGuests } from "@/lib/api/guests";
+import { SkeletonList } from "@/components/ui/Skeleton";
+import { useGuests } from "@/lib/hooks/useGuests";
 import { useRealtime } from "@/lib/hooks/useRealtime";
-import { useUIStore } from "@/store/ui";
 import { ROUTES } from "@/constants/routes";
-import type { Guest, GuestStatus } from "@/types";
+import type { GuestStatus } from "@/types";
 
 export default function GuestsListPage() {
-  const [guests, setGuests] = useState<Guest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState<GuestStatus | "all">("all");
-  const { addToast } = useUIStore();
+  const queryClient = useQueryClient();
 
   const pageSize = 10;
 
-  // Load guests
-  const loadGuests = async () => {
-    try {
-      setIsLoading(true);
-      const result = await fetchGuests({
-        page: currentPage,
-        pageSize,
-        status: statusFilter === "all" ? undefined : statusFilter,
-      });
+  // Use TanStack Query hook for guests
+  const { data, isLoading } = useGuests({
+    page: currentPage,
+    pageSize,
+    status: statusFilter === "all" ? undefined : statusFilter,
+  });
 
-      setGuests(result.guests);
-      setTotalPages(result.totalPages);
-      setTotalCount(result.count);
-    } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to load guests",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const guests = data?.guests || [];
+  const totalPages = data?.totalPages || 1;
+  const totalCount = data?.count || 0;
 
-  useEffect(() => {
-    loadGuests();
-  }, [currentPage, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Realtime updates
+  // Realtime updates - invalidate queries instead of manual refetch
   useRealtime({
     table: "guest",
     onInsert: () => {
-      loadGuests();
+      queryClient.invalidateQueries({ queryKey: ["guests"] });
     },
     onUpdate: () => {
-      loadGuests();
+      queryClient.invalidateQueries({ queryKey: ["guests"] });
     },
     onDelete: () => {
-      loadGuests();
+      queryClient.invalidateQueries({ queryKey: ["guests"] });
     },
   });
 

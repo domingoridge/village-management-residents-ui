@@ -34,7 +34,7 @@ interface ToastProps {
   onClose: () => void;
 }
 
-function Toast({ id, type, message, onClose }: ToastProps) {
+function Toast({ type, message, onClose }: ToastProps) {
   const icons = {
     success: CheckCircle,
     error: AlertCircle,

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +11,7 @@ import {
   CardContent,
 } from "@/components/ui/Card";
 import { GuestForm } from "@/components/features/guests/GuestForm";
-import { createGuest } from "@/lib/api/guests";
+import { useCreateGuest } from "@/lib/hooks/useGuests";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
 import { ROUTES } from "@/constants/routes";
@@ -22,7 +21,7 @@ export default function NewGuestPage() {
   const router = useRouter();
   const { resident, tenantUser } = useAuthStore();
   const { addToast } = useUIStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const createGuest = useCreateGuest();
 
   const handleSubmit = async (data: CreateGuestInput) => {
     if (!resident?.householdId) {
@@ -42,28 +41,17 @@ export default function NewGuestPage() {
     }
 
     try {
-      setIsLoading(true);
-      await createGuest(
-        data,
-        resident.householdId,
-        tenantUser.tenantId,
-        tenantUser.id,
-      );
-
-      addToast({
-        type: "success",
-        message: "Guest pre-authorized successfully",
+      await createGuest.mutateAsync({
+        input: data,
+        householdId: resident.householdId,
+        tenantId: tenantUser.tenantId,
+        tenantUserId: tenantUser.id,
       });
 
       router.push(ROUTES.GUESTS.LIST);
     } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to create guest",
-      });
-    } finally {
-      setIsLoading(false);
+      // Error is already handled by the mutation hook
+      console.error("Failed to create guest:", error);
     }
   };
 
@@ -92,7 +80,7 @@ export default function NewGuestPage() {
         <CardContent>
           <GuestForm
             onSubmit={handleSubmit}
-            isLoading={isLoading}
+            isLoading={createGuest.isPending}
             submitLabel="Pre-authorize Guest"
           />
         </CardContent>

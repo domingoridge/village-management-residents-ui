@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -13,74 +13,44 @@ import {
 } from "@/components/ui/Card";
 import { GuestForm } from "@/components/features/guests/GuestForm";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchGuestById, updateGuest } from "@/lib/api/guests";
+import { useGuest, useUpdateGuest } from "@/lib/hooks/useGuests";
 import { useUIStore } from "@/store/ui";
 import { ROUTES } from "@/constants/routes";
-import type { Guest } from "@/types";
 import type { CreateGuestInput } from "@/lib/schemas/guest";
 
 export default function EditGuestPage() {
   const params = useParams();
   const router = useRouter();
   const { addToast } = useUIStore();
-  const [guest, setGuest] = useState<Guest | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
   const guestId = params.id as string;
 
-  // Load guest data
+  // Use TanStack Query hooks
+  const { data: guest, isLoading } = useGuest(guestId);
+  const updateGuest = useUpdateGuest();
+
+  // Redirect if guest is not pending
   useEffect(() => {
-    const loadGuest = async () => {
-      try {
-        setIsLoading(true);
-        const data = await fetchGuestById(guestId);
-
-        // Only allow editing if status is pending
-        if (data.status !== "pending") {
-          addToast({
-            type: "error",
-            message: "Only pending guests can be edited",
-          });
-          router.push(ROUTES.GUESTS.DETAIL(guestId));
-          return;
-        }
-
-        setGuest(data);
-      } catch (error) {
-        addToast({
-          type: "error",
-          message:
-            error instanceof Error ? error.message : "Failed to load guest",
-        });
-        router.push(ROUTES.GUESTS.LIST);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadGuest();
-  }, [guestId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (guest && guest.status !== "pending") {
+      addToast({
+        type: "error",
+        message: "Only pending guests can be edited",
+      });
+      router.push(ROUTES.GUESTS.DETAIL(guestId));
+    }
+  }, [guest, guestId, router, addToast]);
 
   const handleSubmit = async (data: CreateGuestInput) => {
     try {
-      setIsSaving(true);
-      await updateGuest(guestId, data);
-
-      addToast({
-        type: "success",
-        message: "Guest updated successfully",
+      await updateGuest.mutateAsync({
+        id: guestId,
+        input: data,
       });
 
       router.push(ROUTES.GUESTS.DETAIL(guestId));
     } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to update guest",
-      });
-    } finally {
-      setIsSaving(false);
+      // Error is already handled by the mutation hook
+      console.error("Failed to update guest:", error);
     }
   };
 
@@ -126,11 +96,13 @@ export default function EditGuestPage() {
               phone: guest.phone || undefined,
               vehiclePlate: guest.vehiclePlate || undefined,
               purpose: guest.purpose,
-              expectedArrivalDate: guest.expectedArrivalDate,
+              visitDateStart: guest.visitDateStart,
+              visitDateEnd: guest.visitDateEnd,
+              visitDuration: guest.visitDuration || undefined,
               expectedArrivalTime: guest.expectedArrivalTime || undefined,
               specialInstructions: guest.specialInstructions || undefined,
             }}
-            isLoading={isSaving}
+            isLoading={updateGuest.isPending}
             submitLabel="Update Guest"
           />
         </CardContent>

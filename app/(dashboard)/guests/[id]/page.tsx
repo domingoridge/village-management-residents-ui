@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Calendar,
   Clock,
   Car,
   Phone,
-  User,
-  MapPin,
   Edit2,
   Trash2,
 } from "lucide-react";
@@ -18,52 +17,33 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { Modal, ModalFooter } from "@/components/ui/Modal";
 import { GuestStatusBadge } from "@/components/features/guests/GuestStatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchGuestById, deleteGuest } from "@/lib/api/guests";
+import { useGuest, useDeleteGuest } from "@/lib/hooks/useGuests";
 import { useRealtime } from "@/lib/hooks/useRealtime";
 import { useUIStore } from "@/store/ui";
 import { formatDate, formatTime, formatDateTime } from "@/lib/utils/formatters";
 import { ROUTES } from "@/constants/routes";
-import type { Guest } from "@/types";
 
 export default function GuestDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addToast } = useUIStore();
-  const [guest, setGuest] = useState<Guest | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const guestId = params.id as string;
 
-  // Load guest data
-  const loadGuest = async () => {
-    try {
-      setIsLoading(true);
-      const data = await fetchGuestById(guestId);
-      setGuest(data);
-    } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to load guest",
-      });
-      router.push(ROUTES.GUESTS.LIST);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGuest();
-  }, [guestId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Use TanStack Query hook
+  const { data: guest, isLoading } = useGuest(guestId);
+  const deleteGuest = useDeleteGuest();
 
   // Realtime updates for this specific guest
   useRealtime({
     table: "guest",
     filter: `id=eq.${guestId}`,
     onUpdate: () => {
-      loadGuest();
+      queryClient.invalidateQueries({
+        queryKey: ["guests", "detail", guestId],
+      });
     },
     onDelete: () => {
       addToast({
@@ -76,23 +56,12 @@ export default function GuestDetailPage() {
 
   const handleDelete = async () => {
     try {
-      setIsDeleting(true);
-      await deleteGuest(guestId);
-
-      addToast({
-        type: "success",
-        message: "Guest deleted successfully",
-      });
-
+      await deleteGuest.mutateAsync(guestId);
       router.push(ROUTES.GUESTS.LIST);
     } catch (error) {
-      addToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Failed to delete guest",
-      });
+      // Error is already handled by the mutation hook
+      console.error("Failed to delete guest:", error);
     } finally {
-      setIsDeleting(false);
       setShowDeleteModal(false);
     }
   };
@@ -272,11 +241,15 @@ export default function GuestDetailPage() {
           <Button
             variant="outline"
             onClick={() => setShowDeleteModal(false)}
-            disabled={isDeleting}
+            disabled={deleteGuest.isPending}
           >
             Cancel
           </Button>
-          <Button variant="error" onClick={handleDelete} isLoading={isDeleting}>
+          <Button
+            variant="error"
+            onClick={handleDelete}
+            isLoading={deleteGuest.isPending}
+          >
             Delete
           </Button>
         </ModalFooter>

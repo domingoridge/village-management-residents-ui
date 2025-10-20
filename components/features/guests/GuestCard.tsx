@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, Clock, Car, Phone, User } from "lucide-react";
+import { Calendar, Clock, Car, Phone } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { GuestStatusBadge } from "./GuestStatusBadge";
 import { formatDate, formatTime } from "@/lib/utils/formatters";

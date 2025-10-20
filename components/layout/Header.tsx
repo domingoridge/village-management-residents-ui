@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Menu, User } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useNotifications } from "@/lib/hooks/useNotifications";
 import { useUIStore } from "@/store/ui";
