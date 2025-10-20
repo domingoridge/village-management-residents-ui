@@ -1,0 +1,588 @@
+openapi: 3.0.3
+info:
+  title: Vehicle Sticker Request API
+  description: |
+    API contract for vehicle sticker request feature in Village Management Resident UI.
+    This defines client-side interactions with Supabase for creating and managing
+    vehicle sticker requests.
+  version: 1.0.0
+  contact:
+    name: Village Management Team
+
+servers:
+  - url: https://{supabase_project}.supabase.co
+    description: Supabase instance
+    variables:
+      supabase_project:
+        default: your-project-id
+        description: Supabase project identifier
+
+tags:
+  - name: Sticker Requests
+    description: Operations for vehicle sticker requests
+  - name: Quota Management
+    description: Household sticker quota operations
+  - name: File Upload
+    description: Document upload to Supabase Storage
+
+paths:
+  /rest/v1/sticker_requests:
+    get:
+      tags:
+        - Sticker Requests
+      summary: List sticker requests for authenticated user's household
+      description: Retrieves all sticker requests for the household the authenticated resident belongs to
+      security:
+        - Bearer: []
+      parameters:
+        - name: select
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "*"
+        - name: household_id
+          in: query
+          required: false
+          description: Filter by household ID (RLS ensures user can only see own household)
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          description: Filter by request status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, cancelled]
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "submitted_at.desc"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StickerRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Sticker Requests
+      summary: Create a new sticker request
+      description: |
+        Creates a single sticker request for a vehicle. For multiple vehicles,
+        call this endpoint multiple times (client handles transaction).
+        Documents must be uploaded to Supabase Storage first.
+      security:
+        - Bearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStickerRequestPayload'
+      responses:
+        '201':
+          description: Sticker request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StickerRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Quota exceeded or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Household sticker quota exceeded"
+                details: "Cannot create request: 3 of 2 stickers used"
+        '409':
+          description: Duplicate plate number for household
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Duplicate plate number"
+                details: "Vehicle with plate ABC-1234 already has a request for this household"
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /rest/v1/sticker_requests/{id}:
+    get:
+      tags:
+        - Sticker Requests
+      summary: Get a specific sticker request
+      security:
+        - Bearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StickerRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Sticker Requests
+      summary: Update sticker request (cancel only for residents)
+      description: Residents can only cancel pending requests. Admins can update status.
+      security:
+        - Bearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [cancelled, approved, rejected]
+                  description: Residents can only set to 'cancelled'. Admins can set any status.
+              required:
+                - status
+      responses:
+        '200':
+          description: Request updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StickerRequest'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Cannot cancel non-pending request
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /rest/v1/rpc/get_household_quota:
+    post:
+      tags:
+        - Quota Management
+      summary: Get household quota information
+      description: |
+        Returns quota details for the authenticated user's household,
+        including total quota, used quota, and remaining quota.
+      security:
+        - Bearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                p_household_id:
+                  type: string
+                  format: uuid
+                  description: Household ID to check quota for
+              required:
+                - p_household_id
+      responses:
+        '200':
+          description: Quota information retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdQuota'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /storage/v1/object/sticker-documents/{file_path}:
+    post:
+      tags:
+        - File Upload
+      summary: Upload a document to Supabase Storage
+      description: |
+        Upload a single document file (OR, CR, or vehicle photo).
+        File path should follow pattern: {household_id}/{request_id}/{document_type}_{timestamp}.{ext}
+      security:
+        - Bearer: []
+      parameters:
+        - name: file_path
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "550e8400-e29b-41d4-a716-446655440000/abc123/official_receipt_1697123456.pdf"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload
+              required:
+                - file
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Key:
+                    type: string
+                    description: Storage path to uploaded file
+                    example: "550e8400-e29b-41d4-a716-446655440000/abc123/official_receipt_1697123456.pdf"
+        '400':
+          description: Invalid file (size/type)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                fileTooBig:
+                  value:
+                    error: "Payload too large"
+                    message: "File size exceeds 5MB limit"
+                invalidType:
+                  value:
+                    error: "Invalid file type"
+                    message: "Only PDF, JPG, PNG files allowed"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Cannot upload to other household's folder
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    get:
+      tags:
+        - File Upload
+      summary: Download/view uploaded document
+      description: Get a signed URL to access the uploaded document
+      security:
+        - Bearer: []
+      parameters:
+        - name: file_path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signed URL returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signedURL:
+                    type: string
+                    format: uri
+                    description: Temporary URL to access the file (expires in 60 seconds)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token from auth.session
+
+  schemas:
+    StickerRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique request identifier
+        household_id:
+          type: string
+          format: uuid
+          description: Household that owns this request
+        resident_id:
+          type: string
+          format: uuid
+          description: Resident who submitted the request
+        tenant_id:
+          type: string
+          format: uuid
+          description: Village/tenant identifier
+        vehicle_plate_number:
+          type: string
+          maxLength: 15
+          description: License plate number
+          example: "ABC-1234"
+        vehicle_make:
+          type: string
+          maxLength: 50
+          description: Vehicle manufacturer
+          example: "Toyota"
+        vehicle_model:
+          type: string
+          maxLength: 50
+          description: Vehicle model
+          example: "Camry"
+        vehicle_color:
+          type: string
+          maxLength: 30
+          description: Vehicle color
+          example: "Silver"
+        vehicle_year:
+          type: integer
+          minimum: 1900
+          maximum: 2025
+          description: Year of manufacture
+          example: 2020
+        registered_to:
+          type: string
+          maxLength: 100
+          description: Legal owner name
+          example: "Juan Dela Cruz"
+        sticker_type:
+          type: string
+          enum: [resident, beneficial_user]
+          description: Type of sticker requested
+        official_receipt_url:
+          type: string
+          format: uri
+          description: Supabase Storage URL for OR document
+        cert_registration_url:
+          type: string
+          format: uri
+          description: Supabase Storage URL for CR document
+        vehicle_photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Supabase Storage URL for optional vehicle photo
+        request_number:
+          type: string
+          pattern: '^STK-\d{6}$'
+          description: Human-readable request number
+          example: "STK-000123"
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+          description: Current request status
+        submitted_at:
+          type: string
+          format: date-time
+          description: When request was submitted
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When admin approved/rejected
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - household_id
+        - resident_id
+        - tenant_id
+        - vehicle_plate_number
+        - vehicle_make
+        - vehicle_model
+        - vehicle_color
+        - vehicle_year
+        - registered_to
+        - sticker_type
+        - official_receipt_url
+        - cert_registration_url
+        - request_number
+        - status
+        - submitted_at
+        - created_at
+        - updated_at
+
+    CreateStickerRequestPayload:
+      type: object
+      properties:
+        household_id:
+          type: string
+          format: uuid
+        resident_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        vehicle_plate_number:
+          type: string
+          maxLength: 15
+        vehicle_make:
+          type: string
+          maxLength: 50
+        vehicle_model:
+          type: string
+          maxLength: 50
+        vehicle_color:
+          type: string
+          maxLength: 30
+        vehicle_year:
+          type: integer
+          minimum: 1900
+        registered_to:
+          type: string
+          maxLength: 100
+        sticker_type:
+          type: string
+          enum: [resident, beneficial_user]
+        official_receipt_url:
+          type: string
+          format: uri
+          description: Must upload file first, then provide storage URL
+        cert_registration_url:
+          type: string
+          format: uri
+          description: Must upload file first, then provide storage URL
+        vehicle_photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional - upload file first if provided
+      required:
+        - household_id
+        - resident_id
+        - tenant_id
+        - vehicle_plate_number
+        - vehicle_make
+        - vehicle_model
+        - vehicle_color
+        - vehicle_year
+        - registered_to
+        - sticker_type
+        - official_receipt_url
+        - cert_registration_url
+
+    HouseholdQuota:
+      type: object
+      properties:
+        total_quota:
+          type: integer
+          description: Maximum stickers allowed for household
+          example: 3
+        used_quota:
+          type: integer
+          description: Count of approved + pending stickers
+          example: 1
+        remaining_quota:
+          type: integer
+          description: Calculated: total_quota - used_quota
+          example: 2
+        pending_requests:
+          type: integer
+          description: Count of pending requests only
+          example: 0
+        approved_stickers:
+          type: integer
+          description: Count of approved stickers only
+          example: 1
+      required:
+        - total_quota
+        - used_quota
+        - remaining_quota
+        - pending_requests
+        - approved_stickers
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code or short message
+        message:
+          type: string
+          description: Human-readable error description
+        details:
+          type: string
+          description: Additional context about the error
+      required:
+        - error
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Bad Request"
+            message: "Missing required field: vehicle_plate_number"
+
+    Unauthorized:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Invalid or expired authentication token"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Not Found"
+            message: "Sticker request not found"
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal Server Error"
+            message: "An unexpected error occurred"
