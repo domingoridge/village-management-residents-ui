@@ -2,9 +2,9 @@ export type StickerType = "resident" | "beneficial_user";
 
 export type StickerRequestStatus =
   | "pending"
-  | "approved"
-  | "rejected"
-  | "cancelled";
+  | "active"
+  | "inactive"
+  | "requested";
 
 export interface VehicleInfo {
   plateNumber: string;
@@ -60,4 +60,19 @@ export interface HouseholdQuota {
   remainingQuota: number;
   pendingRequests: number;
   approvedStickers: number;
+}
+
+export interface StickerFilterParams {
+  status?: StickerRequestStatus;
+  householdId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface StickerListResponse {
+  requests: StickerRequest[];
+  count: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }

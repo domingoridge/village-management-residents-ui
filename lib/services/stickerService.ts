@@ -118,6 +118,7 @@ export const stickerService = {
         vehicle_year: payload.vehicleYear || null,
         vehicle_registered_to: payload.registeredTo || null,
         sticker_type: payload.stickerType,
+        status: "requested",
       })
       .select()
       .single();
