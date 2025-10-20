@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Testing
+coverage/
+
+# Generated files
+*.min.js
+*.bundle.js
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Environment files
+.env*
+
+# PWA service workers
+**/public/sw.js
+**/public/workbox-*.js
+**/public/worker-*.js
