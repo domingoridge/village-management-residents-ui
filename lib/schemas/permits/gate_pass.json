@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://village-management.com/schemas/permits/gate_pass",
+  "title": "Gate Pass Application",
+  "description": "Form schema for gate pass applications (deliveries, move-ins, move-outs)",
+  "type": "object",
+  "properties": {
+    "passDetails": {
+      "type": "object",
+      "title": "Pass Details",
+      "x-order": 1,
+      "properties": {
+        "passType": {
+          "type": "string",
+          "title": "Pass Type",
+          "enum": ["delivery", "move_out"],
+          "x-fieldType": "select",
+          "x-order": 1
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date",
+          "title": "Start Date",
+          "x-fieldType": "date",
+          "x-placeholder": "YYYY-MM-DD",
+          "x-order": 2
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date",
+          "title": "End Date",
+          "x-fieldType": "date",
+          "x-placeholder": "YYYY-MM-DD",
+          "x-order": 3
+        },
+        "purpose": {
+          "type": "string",
+          "title": "Purpose",
+          "x-fieldType": "textarea",
+          "x-placeholder": "Describe the purpose of this gate pass",
+          "x-helperText": "Provide details about the delivery or move-out",
+          "minLength": 10,
+          "maxLength": 500,
+          "x-order": 4
+        }
+      },
+      "required": ["passType", "startDate", "endDate", "purpose"]
+    },
+    "personInfo": {
+      "type": "object",
+      "title": "Person & Vehicle Information",
+      "x-order": 2,
+      "properties": {
+        "driverName": {
+          "type": "string",
+          "title": "Driver/Person Name",
+          "x-fieldType": "text",
+          "x-placeholder": "Name of driver or person",
+          "minLength": 2,
+          "maxLength": 100,
+          "x-order": 1
+        },
+        "contactNumber": {
+          "type": "string",
+          "title": "Contact Number",
+          "pattern": "^(\\+63|0)?9\\d{9}$",
+          "x-fieldType": "text",
+          "x-placeholder": "09XXXXXXXXX",
+          "x-helperText": "Philippine mobile number format",
+          "x-order": 2
+        },
+        "vehiclePlate": {
+          "type": "string",
+          "title": "Vehicle Plate Number",
+          "x-fieldType": "text",
+          "x-placeholder": "ABC1234",
+          "x-helperText": "Optional: Vehicle plate number if applicable",
+          "maxLength": 20,
+          "x-order": 3
+        },
+        "specialInstructions": {
+          "type": "string",
+          "title": "Special Instructions",
+          "x-fieldType": "textarea",
+          "x-placeholder": "Any special instructions or requirements (optional)",
+          "maxLength": 300,
+          "x-order": 4
+        }
+      },
+      "required": ["driverName", "contactNumber"]
+    }
+  },
+  "required": ["passDetails", "personInfo"]
+}
