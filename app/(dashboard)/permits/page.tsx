@@ -205,26 +205,19 @@ export default function PermitsPage() {
                           </span>
                         )}
                       </div>
+                      <div>
+                        <p className="mb-3 text-sm text-neutral/70">
+                          {`Permit #: ${app?.permitNumber}`}
+                        </p>
+                      </div>
 
                       <p className="mb-3 text-sm text-neutral/70">
-                        {permitMetadata.description}
+                        {app?.formAnswers?.projectInfo?.projectDescription
+                          ? app?.formAnswers?.projectInfo?.projectDescription
+                          : permitMetadata.description}
                       </p>
 
                       <div className="flex flex-wrap items-center gap-4 text-sm text-neutral/70">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>
-                            Created:{" "}
-                            {new Date(app.createdAt).toLocaleDateString(
-                              "en-PH",
-                              {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              },
-                            )}
-                          </span>
-                        </div>
                         {app.submittedAt && (
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4" />

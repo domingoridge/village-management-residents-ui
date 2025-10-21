@@ -9,10 +9,12 @@
 import { useParams, useRouter } from "next/navigation";
 import { usePermit } from "@/lib/hooks/usePermits";
 import { Button } from "@/components/ui/Button";
-import { FileText, Calendar, MapPin } from "lucide-react";
+import { FileText, Calendar, CreditCard } from "lucide-react";
 import { PERMIT_TYPES } from "@/constants/permitTypes";
 import { formatCurrency } from "@/lib/utils/feeCalculator";
 import { useFeeCalculation } from "@/lib/hooks/useFeeCalculation";
+import { useSchemaMetadata } from "@/lib/hooks/useSchemaMetadata";
+import { SectionRenderer } from "@/components/features/permits/SectionRenderer";
 
 export default function ViewPermitPage() {
   const params = useParams();
@@ -25,6 +27,10 @@ export default function ViewPermitPage() {
     permitType: application?.permitType || null,
     projectDetails: application?.formAnswers,
   });
+
+  const { schemaMetadata, loading: schemaLoading } = useSchemaMetadata(
+    application?.permitType || null,
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -110,7 +116,7 @@ export default function ViewPermitPage() {
                   Reference Number
                 </dt>
                 <dd className="mt-1 font-mono text-sm font-medium text-neutral">
-                  {application.id}
+                  {application.permitNumber}
                 </dd>
               </div>
               <div>
@@ -155,31 +161,35 @@ export default function ViewPermitPage() {
             </dl>
           </div>
 
-          {/* Project Details */}
-          {application.formAnswers &&
+          {/* Project Details - Dynamically rendered by schema sections */}
+          {schemaMetadata &&
+            application.formAnswers &&
             Object.keys(application.formAnswers).length > 0 && (
-              <div className="rounded-lg border-2 border-neutral/10 bg-white p-6 shadow-sm">
-                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral">
-                  <MapPin className="h-5 w-5" />
-                  Project Details
-                </h2>
-
-                <dl className="grid gap-4 sm:grid-cols-2">
-                  {Object.entries(application.formAnswers).map(
-                    ([key, value]) => (
-                      <div key={key}>
-                        <dt className="text-sm font-medium capitalize text-neutral/70">
-                          {key.replace(/([A-Z])/g, " $1").trim()}
-                        </dt>
-                        <dd className="mt-1 text-sm text-neutral">
-                          {String(value)}
-                        </dd>
-                      </div>
-                    ),
-                  )}
-                </dl>
-              </div>
+              <>
+                {schemaMetadata.sections.map((section) => (
+                  <SectionRenderer
+                    key={section.key}
+                    section={section}
+                    formAnswers={application.formAnswers}
+                  />
+                ))}
+              </>
             )}
+
+          {/* Loading state for schema */}
+          {schemaLoading && (
+            <div className="rounded-lg border-2 border-neutral/10 bg-white p-6 shadow-sm">
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 w-48 rounded bg-neutral/20" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="h-16 rounded bg-neutral/10" />
+                  <div className="h-16 rounded bg-neutral/10" />
+                  <div className="h-16 rounded bg-neutral/10" />
+                  <div className="h-16 rounded bg-neutral/10" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Documents */}
           {application.documents && application.documents.length > 0 && (
@@ -252,6 +262,19 @@ export default function ViewPermitPage() {
             >
               Back to Applications
             </Button>
+            {application.status === "approved" && (
+              <Button
+                variant="primary"
+                onClick={() =>
+                  router.push(`/permits/${application.id}/payment`)
+                }
+                fullWidth
+                data-testid="proceed-payment-button"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Proceed with Payment
+              </Button>
+            )}
             {application.status === "draft" && (
               <Button
                 variant="primary"

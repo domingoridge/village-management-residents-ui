@@ -44,6 +44,7 @@ export interface PermitApplication {
   formAnswers: FormAnswers<any>;
   residentId: string;
   permitType: PermitType;
+  permitNumber?: string;
   status: PermitStatus;
   createdAt: string;
   updatedAt: string;

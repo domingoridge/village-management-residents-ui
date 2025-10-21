@@ -1,6 +1,6 @@
 # Tasks: Permit Request Wizard
 
-**Input**: Design documents from `/specs/feat/permit-request-wizard/`
+**Input**: Design documents from `/specs/feat/permit-request-wizard/` + Enhancement request: "enhance @app/(dashboard)/permits/[id]/page.tsx to dynamically render information per section from formAnswers object"
 **Prerequisites**: plan.md (required), spec.md (required for user stories)
 
 **Tests**: Not requested in specification - tests excluded from this task list
@@ -157,26 +157,66 @@
 
 ---
 
-## Phase 7: Polish & Cross-Cutting Concerns
+## Phase 7: Dynamic Permit Detail Page Enhancement
+
+**Purpose**: Enhance the permit detail page to dynamically render formAnswers data organized by schema sections with proper formatting
+
+**Context**: The current permit detail page (app/(dashboard)/permits/[id]/page.tsx) renders formAnswers using generic Object.entries() at lines 168-179. This enhancement will transform it to use JSON Schema structure for organized section rendering.
+
+### Setup for Enhancement
+
+- [x] T075 [P] Create schema parser utility in lib/utils/schemaParser.ts to extract section metadata from JSON Schema files
+- [x] T076 [P] Create form field formatter utility in lib/utils/fieldFormatter.ts to transform formAnswers values for display (dates, enums, etc.)
+- [x] T077 [P] Create schema loader hook in lib/hooks/useSchemaMetadata.ts to load and parse JSON Schema based on permit type
+- [x] T078 Create TypeScript types for schema metadata in types/schema.ts (SectionMetadata, FieldMetadata, SchemaStructure)
+
+### Core Implementation
+
+- [x] T079 [P] Create SectionRenderer component in components/features/permits/SectionRenderer.tsx to render a single section with title and fields
+- [x] T080 [P] Create FieldRenderer component in components/features/permits/FieldRenderer.tsx to render individual fields with proper formatting
+- [x] T081 Update app/(dashboard)/permits/[id]/page.tsx to use useSchemaMetadata hook to load schema for current permit type
+- [x] T082 Replace generic Object.entries() rendering with SectionRenderer components in app/(dashboard)/permits/[id]/page.tsx (line 168)
+- [x] T083 Implement date formatter in lib/utils/fieldFormatter.ts - formatDate() using Intl.DateTimeFormat
+- [x] T084 Implement enum formatter in lib/utils/fieldFormatter.ts - formatEnumValue() to convert keys to display labels
+- [x] T085 Implement number formatter in lib/utils/fieldFormatter.ts - formatNumberWithUnit() to append units from schema
+- [x] T086 Update FieldRenderer to use formatters based on field type (x-fieldType from schema)
+
+### Polish and Testing
+
+- [x] T087 Add conditional field display logic to skip null/undefined/empty values in FieldRenderer
+- [x] T088 Add empty section state component in components/features/permits/EmptySection.tsx
+- [x] T089 Update SectionRenderer with responsive grid layout (1 column mobile, 2 columns desktop)
+- [x] T090 Add data-testid attributes to SectionRenderer and FieldRenderer components
+- [x] T091 Test with construction permit - verify projectInfo and contractorInfo sections render correctly
+- [x] T092 Test with renovation permit - verify additional fields (renovationType, affectedArea) display with proper formatting
+- [x] T093 Test with gate_pass permit - verify passDetails and personInfo sections render correctly
+- [x] T094 Test with permits having optional fields empty - verify clean display without empty fields
+- [x] T095 Verify responsive layout on mobile (320px), tablet (768px), and desktop (1024px+) viewports
+
+**Checkpoint**: Permit detail page now dynamically renders formAnswers organized by schema sections with proper formatting
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories and final quality checks
 
-- [ ] T075 [P] Add mobile-responsive styles for all wizard steps (320px minimum width)
-- [ ] T076 [P] Verify WCAG 2.1 AA compliance for all form fields, buttons, and navigation
-- [ ] T077 [P] Add aria-labels and aria-describedby attributes for screen reader support
-- [ ] T078 [P] Implement wizard step transition animations (< 200ms per performance goal)
-- [ ] T079 [P] Add form field rendering performance optimization (< 100ms after permit type selection)
-- [ ] T080 [P] Add error boundary component for graceful error handling
-- [ ] T081 [P] Implement toast notification positioning (top-right per constitution)
-- [ ] T082 Create /permits/[id] view page at app/(dashboard)/permits/[id]/page.tsx for viewing submitted applications
-- [ ] T083 [P] Add documentation comments to all custom hooks
-- [ ] T084 [P] Add JSDoc comments to utility functions
-- [ ] T085 [P] Verify all components follow PascalCase naming convention
-- [ ] T086 [P] Verify all hooks follow camelCase with "use" prefix
-- [ ] T087 [P] Run ESLint and fix any warnings
-- [ ] T088 [P] Run Prettier to ensure consistent formatting
-- [ ] T089 Final manual testing of complete wizard flow end-to-end
-- [ ] T090 Verify all data-testid attributes are in place for test automation
+- [ ] T096 [P] Add mobile-responsive styles for all wizard steps (320px minimum width)
+- [ ] T097 [P] Verify WCAG 2.1 AA compliance for all form fields, buttons, and navigation
+- [ ] T098 [P] Add aria-labels and aria-describedby attributes for screen reader support
+- [ ] T099 [P] Implement wizard step transition animations (< 200ms per performance goal)
+- [ ] T100 [P] Add form field rendering performance optimization (< 100ms after permit type selection)
+- [ ] T101 [P] Add error boundary component for graceful error handling
+- [ ] T102 [P] Implement toast notification positioning (top-right per constitution)
+- [ ] T103 [P] Add documentation comments to all custom hooks
+- [ ] T104 [P] Add JSDoc comments to utility functions
+- [ ] T105 [P] Verify all components follow PascalCase naming convention
+- [ ] T106 [P] Verify all hooks follow camelCase with "use" prefix
+- [ ] T107 [P] Run ESLint and fix any warnings
+- [ ] T108 [P] Run Prettier to ensure consistent formatting
+- [ ] T109 Final manual testing of complete wizard flow end-to-end
+- [ ] T110 Verify all data-testid attributes are in place for test automation
+- [ ] T111 Update CLAUDE.md with new components and utilities via .specify/scripts/bash/update-agent-context.sh
 
 ---
 
@@ -189,7 +229,8 @@
 - **User Stories (Phase 3-6)**: All depend on Foundational phase completion
   - User stories can then proceed in parallel (if staffed)
   - Or sequentially in priority order (P1 → P2 → P3 → P3)
-- **Polish (Phase 7)**: Depends on all desired user stories being complete
+- **Enhancement (Phase 7)**: Can start after Phase 2 completion - independent of wizard phases
+- **Polish (Phase 8)**: Depends on all desired user stories and enhancements being complete
 
 ### User Story Dependencies
 
@@ -197,6 +238,7 @@
 - **User Story 2 (P2)**: Can start after Foundational (Phase 2) - No dependencies on other stories (independently testable)
 - **User Story 3 (P3)**: Can start after Foundational (Phase 2) - Integrates with US1/US2 but should be independently testable
 - **User Story 4 (P3)**: Can start after Foundational (Phase 2) - Enhances all stories but independently testable
+- **Detail Page Enhancement (Phase 7)**: Can start after Foundational (Phase 2) - Works with existing schemas
 
 ### Within Each User Story
 
@@ -213,6 +255,8 @@
 - Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
 - JSON schema files within a story marked [P] can run in parallel (T019-T022 for US1)
 - Components within a story marked [P] can run in parallel
+- Enhancement utilities (T075-T077) can run in parallel
+- Enhancement components (T079-T080) can run in parallel
 - Different user stories can be worked on in parallel by different team members
 
 ---
@@ -229,6 +273,26 @@ Task: "Create plumbing.json schema in lib/schemas/permits/plumbing.json"
 # After schemas done, launch parallel components:
 Task: "Create DynamicFormRenderer component in components/features/permits/DynamicFormRenderer.tsx"
 Task: "Create PermitTypeSelector component in components/features/permits/PermitTypeSelector.tsx"
+```
+
+---
+
+## Parallel Example: Detail Page Enhancement (Phase 7)
+
+```bash
+# Launch setup utilities in parallel:
+Task: "Create schema parser utility in lib/utils/schemaParser.ts"
+Task: "Create form field formatter utility in lib/utils/fieldFormatter.ts"
+Task: "Create schema loader hook in lib/hooks/useSchemaMetadata.ts"
+
+# Launch component creation in parallel:
+Task: "Create SectionRenderer component in components/features/permits/SectionRenderer.tsx"
+Task: "Create FieldRenderer component in components/features/permits/FieldRenderer.tsx"
+
+# Launch formatter functions in parallel:
+Task: "Implement date formatter in lib/utils/fieldFormatter.ts - formatDate()"
+Task: "Implement enum formatter in lib/utils/fieldFormatter.ts - formatEnumValue()"
+Task: "Implement number formatter in lib/utils/fieldFormatter.ts - formatNumberWithUnit()"
 ```
 
 ---
@@ -250,7 +314,8 @@ Task: "Create PermitTypeSelector component in components/features/permits/Permit
 3. Add User Story 2 → Test independently → Deploy/Demo (Document uploads added)
 4. Add User Story 3 → Test independently → Deploy/Demo (Payment and submission added)
 5. Add User Story 4 → Test independently → Deploy/Demo (Draft save/resume added)
-6. Each story adds value without breaking previous stories
+6. Add Detail Page Enhancement (Phase 7) → Test independently → Deploy/Demo (Better detail view)
+7. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
 
@@ -262,13 +327,14 @@ With multiple developers:
    - Developer B: User Story 2 (Document uploads)
    - Developer C: User Story 3 (Payment)
    - Developer D: User Story 4 (Draft functionality)
+   - Developer E: Detail Page Enhancement (Phase 7)
 3. Stories complete and integrate independently
 
 ---
 
 ## Summary Statistics
 
-**Total Tasks**: 90
+**Total Tasks**: 111
 
 - Phase 1 (Setup): 8 tasks
 - Phase 2 (Foundational): 10 tasks (BLOCKING)
@@ -276,9 +342,10 @@ With multiple developers:
 - Phase 4 (US2 - Document Uploads): 13 tasks
 - Phase 5 (US3 - Payment): 17 tasks
 - Phase 6 (US4 - Draft Save): 10 tasks
-- Phase 7 (Polish): 16 tasks
+- Phase 7 (Detail Page Enhancement): 21 tasks
+- Phase 8 (Polish): 16 tasks
 
-**Parallel Opportunities**: 50+ tasks marked [P] can run in parallel
+**Parallel Opportunities**: 60+ tasks marked [P] can run in parallel
 
 **Independent Test Criteria**:
 
@@ -286,8 +353,11 @@ With multiple developers:
 - US2: Can upload documents with validation
 - US3: Can review fees and submit application
 - US4: Can save and resume drafts
+- Enhancement: Detail page shows organized sections with formatted fields
 
 **Suggested MVP Scope**: Phase 1 + Phase 2 + Phase 3 (User Story 1) = 34 tasks
+
+**Enhancement Scope**: Phase 7 adds dynamic detail page rendering (21 tasks) - can be done independently
 
 ---
 
@@ -302,3 +372,18 @@ With multiple developers:
 - Follow constitution naming conventions: PascalCase for components, camelCase for hooks/utils
 - Add data-testid attributes during implementation, not as separate tasks
 - Skeleton loaders and toast notifications per constitution requirements
+- Phase 7 (Detail Page Enhancement) can be implemented independently of wizard phases
+
+## Detail Page Enhancement Context
+
+**Current State**: app/(dashboard)/permits/[id]/page.tsx lines 168-179 use generic `Object.entries(application.formAnswers).map()` which displays flat key-value pairs without section organization or proper formatting.
+
+**Goal State**: Transform to use JSON Schema structure (construction.json, renovation.json, gate_pass.json) to organize fields into labeled sections (e.g., "Project Information", "Contractor Information", "Pass Details") with formatted values (dates as "January 15, 2025", enums as "Interior" instead of "interior", numbers with units).
+
+**Schema Examples**:
+
+- **Construction**: projectInfo (projectStartDate, projectEndDate, projectDescription) + contractorInfo (contractorName, contactNumber, businessAddress)
+- **Renovation**: projectInfo (dates, description, renovationType, affectedArea, existingStructureAge) + contractorInfo (name, contact, email, address)
+- **Gate Pass**: passDetails (passType, startDate, endDate, purpose) + personInfo (driverName, contactNumber, vehiclePlate, specialInstructions)
+
+**Technical Approach**: Create utilities (schemaParser, fieldFormatter) and components (SectionRenderer, FieldRenderer) that read JSON Schema files, extract section metadata, and render formAnswers data organized by sections with appropriate formatting per field type.

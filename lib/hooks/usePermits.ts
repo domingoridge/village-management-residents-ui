@@ -57,6 +57,7 @@ function transformPermitFromDb(
 ): PermitApplication {
   return {
     id: data.id as string,
+    permitNumber: data.permit_number as string,
     residentId: (data.requested_by as string) || (data.resident_id as string),
     permitType: data.permit_type as PermitType,
     status: data.status as PermitStatus,
@@ -120,6 +121,7 @@ async function fetchPermits(filters?: PermitFilterParams) {
   if (error) throw error;
 
   const permits = data.map(transformPermitFromDb);
+  console.log("permits", permits);
 
   return {
     permits,
