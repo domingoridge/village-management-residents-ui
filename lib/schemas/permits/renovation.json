@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://village-management.com/schemas/permits/renovation",
+  "title": "Renovation Permit Application",
+  "description": "Form schema for renovation permit applications",
+  "type": "object",
+  "properties": {
+    "projectInfo": {
+      "type": "object",
+      "title": "Project Information",
+      "x-order": 1,
+      "properties": {
+        "projectStartDate": {
+          "type": "string",
+          "format": "date",
+          "title": "Project Start Date",
+          "x-fieldType": "date",
+          "x-order": 1
+        },
+        "projectEndDate": {
+          "type": "string",
+          "format": "date",
+          "title": "Project End Date",
+          "x-fieldType": "date",
+          "x-order": 2
+        },
+        "projectDescription": {
+          "type": "string",
+          "title": "Renovation Description",
+          "description": "Describe the renovation work to be performed",
+          "minLength": 10,
+          "maxLength": 500,
+          "x-fieldType": "textarea",
+          "x-placeholder": "Describe your renovation project...",
+          "x-helperText": "Maximum 500 characters",
+          "x-order": 3
+        },
+        "renovationType": {
+          "type": "string",
+          "title": "Type of Renovation",
+          "enum": [
+            "interior",
+            "exterior",
+            "structural",
+            "non-structural",
+            "both"
+          ],
+          "x-fieldType": "select",
+          "x-order": 4
+        },
+        "affectedArea": {
+          "type": "number",
+          "title": "Affected Area (sq meters)",
+          "minimum": 1,
+          "x-fieldType": "number",
+          "x-placeholder": "Area to be renovated",
+          "x-order": 5
+        },
+        "existingStructureAge": {
+          "type": "integer",
+          "title": "Age of Existing Structure (years)",
+          "minimum": 0,
+          "x-fieldType": "number",
+          "x-order": 6
+        }
+      },
+      "required": [
+        "projectStartDate",
+        "projectEndDate",
+        "projectDescription",
+        "renovationType",
+        "affectedArea"
+      ]
+    },
+    "contractorInfo": {
+      "type": "object",
+      "title": "Contractor Information",
+      "x-order": 2,
+      "properties": {
+        "contractorName": {
+          "type": "string",
+          "title": "Contractor Name",
+          "minLength": 2,
+          "maxLength": 100,
+          "x-fieldType": "text",
+          "x-order": 1
+        },
+        "contractorContactNumber": {
+          "type": "string",
+          "title": "Contractor Contact Number",
+          "pattern": "^(\\+63|0)?9\\d{9}$",
+          "x-fieldType": "tel",
+          "x-placeholder": "09XXXXXXXXX",
+          "x-order": 2
+        },
+        "contractorEmail": {
+          "type": "string",
+          "format": "email",
+          "title": "Contractor Email",
+          "x-fieldType": "email",
+          "x-order": 3
+        },
+        "contractorBusinessAddress": {
+          "type": "string",
+          "title": "Contractor Business Address",
+          "minLength": 10,
+          "maxLength": 200,
+          "x-fieldType": "textarea",
+          "x-order": 4
+        }
+      },
+      "required": [
+        "contractorName",
+        "contractorContactNumber",
+        "contractorEmail",
+        "contractorBusinessAddress"
+      ]
+    }
+  },
+  "required": ["projectInfo", "contractorInfo"],
+  "additionalProperties": false
+}
